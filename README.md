@@ -238,106 +238,106 @@ Tybell is my gateer stalk smend as be matious dazest
 
 我发现 **13+ million-parameter** 模型就足够生成正确的语法和标点, 这一发现令人振奋. 这意味着我们可以使用一个更具体的数据进一步微调我们之前训练好的模型. 最终我们可能得到一个参数在 1 billion以下或者甚至 500 million左右, 并且在特殊用途上表现的非常好的模型, 特别针对想要安全的私密数据(不需要再将数据喂给大模型,而是训练一个模型).
 
-I recommend you **first train a 13+ million-parameter** model using the script available in my GitHub repository. You will get results within one day, instead of waiting for a longer time, or if your local GPU might not be strong enough to train a billion-parameter model.
+如果你本地GPU性能不够强到去训练十亿-参数的模型, 我建议你使用我仓库的代码 **先训练一个 1300+ 万参数** 的模型. 这样子你在一天内就能得到一个模型, 而不是花一段更长的时间. 
 
 ### 依赖导入
 
-Let’s import the required libraries that will be used throughout this blog:
+让我们先导入本次使用必备的库:
 
 ```python
-# PyTorch for deep learning functions and tensors
+# Pytorch中深度学习的方法和张量 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# Numerical operations and arrays handling
+# 数据运算和数组处理
 import numpy as np
 
-# Handling HDF5 files
+# 处理HDF5文件
 import h5py
 
-# Operating system and file management
+# 操作系统和文件的包
 import os
 
-# Command-line argument parsing
+# 命令行参数解析
 import argparse
 
-# HTTP requests and interactions
+# HTTP请求交互
 import requests
 
-# Progress bar for loops
+# 循环进度条
 from tqdm import tqdm
 
-# JSON handling
+# JSON 数据处理
 import json
 
-# Zstandard compression library
+# Zstandard 压缩库
 import zstandard as zstd
 
-# Tokenization library for large language models
+# 大语言模型分词库
 import tiktoken
 
-# Math operations (used for advanced math functions)
+# 数学运算 (用于高级数学函数)
 import math
 ```
 
 ### 准备训练数据
 
-Our training dataset needs to be diverse, containing information from different domains, and The Pile is the right choice for it. Although it is 825 GB in size, we will stick to only a small portion of it, i.e., 5%–10%. Let’s first download the dataset and see how it works. I will be downloading the version available on [HuggingFace](https://huggingface.co/datasets/monology/pile-uncopyrighted).
+我们需要多样化的数据, 包含不同领域的信息, 而 Pile 刚好合适. 虽然它有 825 GB,但是我们只需要使用其中的一部分,大约5%~10%. 我们需要先将数据集下载下来,然后再考虑怎么使用.我们下载的版本可以在 [HuggingFace](https://huggingface.co/datasets/monology/pile-uncopyrighted) 中获取.
 
 ```python
-# Download validation dataset
+# 下载验证数据集
 !wget https://huggingface.co/datasets/monology/pile-uncopyrighted/resolve/main/val.jsonl.zst
 
-# Download the first part of the training dataset
+# 下载第一部分的训练数据集
 !wget https://huggingface.co/datasets/monology/pile-uncopyrighted/resolve/main/train/00.jsonl.zst
 
-# Download the second part of the training dataset
+# 下载第二部分的训练数据集
 !wget https://huggingface.co/datasets/monology/pile-uncopyrighted/resolve/main/train/01.jsonl.zst
 
-# Download the third part of the training dataset
+# 下载第三部分的训练数据集
 !wget https://huggingface.co/datasets/monology/pile-uncopyrighted/resolve/main/train/02.jsonl.zst
 ```
 
-It will take some time to download, but you can also limit the training dataset to just one file, `00.jsonl.zst`, instead of three. It is already split into train/val/test. Once it's done, make sure to place the files correctly in their respective directories.
+下载会消耗一些时间, 你也可以限制训练数据集只使用一个文件 `00.jsonl.zst`, 而不是使用三个. 它已经被分割到train/val/test三个文件中.下载完成后, 确保这些文件正确的放在各自的文件夹中.
 
 ```python
 import os
 import shutil
 import glob
 
-# Define directory structure
+# 定义文件夹结构
 train_dir = "data/train"
 val_dir = "data/val"
 
-# Create directories if they don't exist
+# 如果文件夹不存在就创建
 os.makedirs(train_dir, exist_ok=True)
 os.makedirs(val_dir, exist_ok=True)
 
-# Move all train files (e.g., 00.jsonl.zst, 01.jsonl.zst, ...)
+# 放置所有的训练文件 (列入, 00.jsonl.zst, 01.jsonl.zst, ...)
 train_files = glob.glob("*.jsonl.zst")
 for file in train_files:
     if file.startswith("val"):
-        # Move validation file
+        # 放置所有的校验文件
         dest = os.path.join(val_dir, file)
     else:
-        # Move training file
+        # 放置训练文件
         dest = os.path.join(train_dir, file)
     shutil.move(file, dest)
 
 Our dataset is in the .jsonl.zst format, which is a compressed file format commonly used for storing large datasets. It combines JSON Lines (.jsonl), where each line represents a valid JSON object, with Zstandard (.zst) compression. Let's read a sample of one of the downloaded files and see how it looks.
 
-in_file = "data/val/val.jsonl.zst"  # Path to our validation file
+in_file = "data/val/val.jsonl.zst"  # 校验文件夹路径
 
 with zstd.open(in_file, 'r') as in_f:
-    for i, line in tqdm(enumerate(in_f)):  # Read first 5 lines
+    for i, line in tqdm(enumerate(in_f)):  # 读取最先的5行
         data = json.loads(line)
-        print(f"Line {i}: {data}")  # Print the raw data for inspection
+        print(f"Line {i}: {data}")  # 打印出原始数据查看
         if i == 2:
             break
 ```
 
-The output of the above code is this:
+上面的代码输出如下:
 
 ```python
 #### OUTPUT ####
@@ -358,6 +358,7 @@ Line: 1
 }
 ```
 
+现在我们对数据集进行编码(分词处理). 
 Now we need to encode (tokenize) our dataset. Our goal is to have an LLM that can at least output proper words. For that, we need to use an already available tokenizer. We will use the tiktoken open-source tokenizer by OpenAI. We will use the r50k_base tokenizer, which is used for the ChatGPT (GPT-3) model, to tokenize our dataset.
 
 We need to create a function for this to avoid duplication, as we will be tokenizing both the train and validation datasets.
