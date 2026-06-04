@@ -234,9 +234,9 @@ Proforne, wiftes swleen, was no blunderesd a a quain beath!
 Tybell is my gateer stalk smend as be matious dazest
 ```
 
-I had a thought, what if I make the transformer architecture smaller and less complex, and the training data more diverse? Then, how big of a model could a single person, using their nearly dead GPU, create in terms of parameters that can speak proper grammar and generate text that makes some sense?
+我产生了一个想法, 如果我将transformer架构简化和小型化, 同时将训练数据多样化,会怎么样?那么接下来, 个人开发者使用他们几乎坏掉的GPU训练出一个多大(参数)的模型, 才能支持生成正确的语法和语义呢?
 
-I found that **13+ million-parameter** models are enough to start making sense in terms of proper grammar and punctuation, which is a positive point. This means we can use a very specific dataset to further fine-tune our previously trained model for a narrowed task. We might end up with a model under 1 billion parameters or even around 500 million parameters that is perfect for our specific use case, especially for running it on private data securely.
+我发现 **13+ million-parameter** 模型就足够生成正确的语法和标点, 这一发现令人振奋. 这意味着我们可以使用一个更具体的数据进一步微调我们之前训练好的模型. 最终我们可能得到一个参数在 1 billion以下或者甚至 500 million左右, 并且在特殊用途上表现的非常好的模型, 特别针对想要安全的私密数据(不需要再将数据喂给大模型,而是训练一个模型).
 
 I recommend you **first train a 13+ million-parameter** model using the script available in my GitHub repository. You will get results within one day, instead of waiting for a longer time, or if your local GPU might not be strong enough to train a billion-parameter model.
 
