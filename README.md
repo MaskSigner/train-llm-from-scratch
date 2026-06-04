@@ -3,7 +3,7 @@
 <div align="center">
 
 <!-- omit in toc -->
-# Train LLM From Scratch
+# 从零开始训练大模型
   
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![Contributions](https://img.shields.io/badge/Contributions-Welcome-blue) [![Docs](https://img.shields.io/badge/Docs-Available-success)](#step-by-step-code-explanation)
 
@@ -11,9 +11,9 @@
 
 </div>
 
-I implemented a transformer model from scratch using PyTorch, based on the paper [Attention is All You Need](https://arxiv.org/abs/1706.03762). You can use my scripts to train your own **billion** or **million** parameter LLM using a single GPU.
+我根据 [Attention is All You Need](https://arxiv.org/abs/1706.03762) 论文 , 使用PyTorch从0手搓了一个transformer模型. 现在你只需要一块GPU就可以使用我的 script 脚本训练自己的 **百亿** 或 **百万** 参数的大模型
 
-Below is the output of the trained 13 million parameter LLM:
+下面是我自己训练的 1300 万参数的LLM输出:
 
 ```
 In ***1978, The park was returned to the factory-plate that 
@@ -25,30 +25,30 @@ Odambinais is uncertain and fortune established in rural areas.
 ```
 <!-- omit in toc -->
 ## Table of Contents
-- [Training Data Info](#training-data-info)
-- [Prerequisites and Training Time](#prerequisites-and-training-time)
-- [Code Structure](#code-structure)
-- [Usage](#usage)
-- [Step by Step Code Explanation](#step-by-step-code-explanation)
-  - [Importing Libraries](#importing-libraries)
-  - [Preparing the Training Data](#preparing-the-training-data)
-  - [Transformer Overview](#transformer-overview)
-  - [Multi Layer Perceptron (MLP)](#multi-layer-perceptron-mlp)
-  - [Single Head Attention](#single-head-attention)
-  - [Multi Head Attention](#multi-head-attention)
-  - [Transformer Block](#transformer-block)
-  - [The Final Model](#the-final-model)
-  - [Batch Processing](#batch-processing)
-  - [Training Parameters](#training-parameters)
-  - [Training the Model](#training-the-model)
-  - [Saving the Trained Model](#saving-the-trained-model)
-  - [Training Loss](#training-loss)
-  - [Generating Text](#generating-text)
-- [What’s Next](#whats-next)
+- [训练数据](#训练数据)
+- [前置条件](#前置条件)
+- [代码结构](#代码结构)
+- [用法](#用法)
+- [手把手代码解读](#手把手代码解读)
+  - [依赖导入](#依赖导入)
+  - [准备训练数据](#准备训练数据)
+  - [模型预览](#模型预览)
+  - [多层感知器 (MLP)](#多层感知器)
+  - [单头注意力机制](#单头注意力机制)
+  - [多头注意力机制](#多头注意力机制)
+  - [编解码器](#编解码器)
+  - [最终模型](#最终模型)
+  - [训练批次](#训练批次)
+  - [训练参数](#训练参数)
+  - [模型训练](#模型训练)
+  - [保存训练模型](#保存训练模型)
+  - [训练损失](#训练损失)
+  - [文本生成](#文本生成)
+- [接下来呢](#接下来呢)
 
-## Training Data Info
+## 训练数据
 
-Training data is from the Pile dataset, which is a diverse, open-source, and large-scale dataset for training language models. The Pile dataset is a collection of 22 diverse datasets, including text from books, articles, websites, and more. The total size of the Pile dataset is 825GB, Below is the sample of the training data:
+训练数据来自 Pile 数据集,这是一个多样的开源大规模语言模型训练数据集. Pile 数据集是一个包含书籍文章、艺术、网站等22个多样的数据集. Pile数据集的总大小是825GB, 下面是一段数据集的样本:
 
 ```python
 Line: 0 
@@ -68,87 +68,87 @@ Line: 1
 }
 ```
 
-## Prerequisites and Training Time
+## 前置条件
 
-Make sure you have a basic understanding of object-oriented programming (OOP), neural networks (NN) and PyTorch to understand the code. Below are some resources to help you get started:
+确保你对面向对象编程、神经网络 (NN) 和 PyTorch 有基础的理解以便读懂代码. 如果没有, 下面这些资源能帮你入门:
 
-| Topic               | Video Link                                                |
-|---------------------|-----------------------------------------------------------|
-| OOP                 | [OOP Video](https://www.youtube.com/watch?v=Ej_02ICOIgs&pp=ygUKb29wIHB5dGhvbg%3D%3D) |
-| Neural Network      | [Neural Network Video](https://www.youtube.com/watch?v=Jy4wM2X21u0&pp=ygUbbmV1cmFsIG5ldHdvcmsgcHl0aG9uIHRvcmNo) |
-| Pytorch             | [Pytorch Video](https://www.youtube.com/watch?v=V_xro1bcAuA&pp=ygUbbmV1cmFsIG5ldHdvcmsgcHl0aG9uIHRvcmNo) |
+| Topic   | Video Link                                                |
+|---------|-----------------------------------------------------------|
+| 面向对象编程  | [面向对象编程](https://www.youtube.com/watch?v=Ej_02ICOIgs&pp=ygUKb29wIHB5dGhvbg%3D%3D) |
+| 神经网络    | [神经网络](https://www.youtube.com/watch?v=Jy4wM2X21u0&pp=ygUbbmV1cmFsIG5ldHdvcmsgcHl0aG9uIHRvcmNo) |
+| Pytorch | [Pytorch Video](https://www.youtube.com/watch?v=V_xro1bcAuA&pp=ygUbbmV1cmFsIG5ldHdvcmsgcHl0aG9uIHRvcmNo) |
 
-You will need a GPU to train your model. Colab or Kaggle T4 will work for training a 13+ million-parameter model, but they will fail for billion-parameter training. Take a look at the comparison:
+要完成模型训练,你至少需要一块GPU. Colab 或 Kaggle T4 可以训练 13+ 百万-参数 模型, 但是拿他们训练 十亿-参数 模型就够呛了. 以下是一览表:
 
-| GPU Name                 | Memory | Data Size | 2B LLM Training | 13M LLM Training | Max Practical LLM Size (Training) |
-|--------------------------|--------|-----------|-----------------|------------------|-----------------------------------|
-| NVIDIA A100              | 40 GB  | Large     | ✔               | ✔                | ~6B–8B                             |
-| NVIDIA V100              | 16 GB  | Medium    | ✘               | ✔                | ~2B                               |
-| AMD Radeon VII           | 16 GB  | Medium    | ✘               | ✔                | ~1.5B–2B                          |
-| NVIDIA RTX 3090          | 24 GB  | Large     | ✔               | ✔                | ~3.5B–4B                          |
-| Tesla P100               | 16 GB  | Medium    | ✘               | ✔                | ~1.5B–2B                          |
-| NVIDIA RTX 3080          | 10 GB  | Medium    | ✘               | ✔                | ~1.2B                             |
-| AMD RX 6900 XT           | 16 GB  | Large     | ✘               | ✔                | ~2B                               |
-| NVIDIA GTX 1080 Ti       | 11 GB  | Medium    | ✘               | ✔                | ~1.2B                             |
-| Tesla T4                 | 16 GB  | Small     | ✘               | ✔                | ~1.5B–2B                          |
-| NVIDIA Quadro RTX 8000   | 48 GB  | Large     | ✔               | ✔                | ~8B–10B                           |
-| NVIDIA RTX 4070          | 12 GB  | Medium    | ✘               | ✔                | ~1.5B                             |
-| NVIDIA RTX 4070 Ti       | 12 GB  | Medium    | ✘               | ✔                | ~1.5B                             |
-| NVIDIA RTX 4080          | 16 GB  | Medium    | ✘               | ✔                | ~2B                               |
-| NVIDIA RTX 4090          | 24 GB  | Large     | ✔               | ✔                | ~4B                               |
-| NVIDIA RTX 4060 Ti       | 8 GB   | Small     | ✘               | ✔                | ~1B                               |
-| NVIDIA RTX 4060          | 8 GB   | Small     | ✘               | ✔                | ~1B                               |
-| NVIDIA RTX 4050          | 6 GB   | Small     | ✘               | ✔                | ~0.75B                            |
-| NVIDIA RTX 3070          | 8 GB   | Small     | ✘               | ✔                | ~1B                               |
-| NVIDIA RTX 3060 Ti       | 8 GB   | Small     | ✘               | ✔                | ~1B                               |
-| NVIDIA RTX 3060          | 12 GB  | Medium    | ✘               | ✔                | ~1.5B                             |
-| NVIDIA RTX 3050          | 8 GB   | Small     | ✘               | ✔                | ~1B                               |
-| NVIDIA GTX 1660 Ti       | 6 GB   | Small     | ✘               | ✔                | ~0.75B                            |
-| AMD RX 7900 XTX          | 24 GB  | Large     | ✔               | ✔                | ~3.5B–4B                          |
-| AMD RX 7900 XT           | 20 GB  | Large     | ✔               | ✔                | ~3B                               |
-| AMD RX 7800 XT           | 16 GB  | Medium    | ✘               | ✔                | ~2B                               |
-| AMD RX 7700 XT           | 12 GB  | Medium    | ✘               | ✔                | ~1.5B                             |
-| AMD RX 7600              | 8 GB   | Small     | ✘               | ✔                | ~1B                               |
+| GPU 名称                 | 内存    | 数据量    | 2B LLM Training | 13M LLM Training | 实际最大训练量 |
+|------------------------|-------|--------|-----------------|------------------|------------------------------------------|
+| NVIDIA A100            | 40 GB | Large  | ✔               | ✔                | ~6B–8B                                   |
+| NVIDIA V100            | 16 GB | Medium | ✘               | ✔                | ~2B                                      |
+| AMD Radeon VII         | 16 GB | Medium | ✘               | ✔                | ~1.5B–2B                                 |
+| NVIDIA RTX 3090        | 24 GB | Large  | ✔               | ✔                | ~3.5B–4B                                 |
+| Tesla P100             | 16 GB | Medium | ✘               | ✔                | ~1.5B–2B                                 |
+| NVIDIA RTX 3080        | 10 GB | Medium | ✘               | ✔                | ~1.2B                                    |
+| AMD RX 6900 XT         | 16 GB | Large  | ✘               | ✔                | ~2B                                      |
+| NVIDIA GTX 1080 Ti     | 11 GB | Medium | ✘               | ✔                | ~1.2B                                    |
+| Tesla T4               | 16 GB | Small  | ✘               | ✔                | ~1.5B–2B                                 |
+| NVIDIA Quadro RTX 8000 | 48 GB | Large  | ✔               | ✔                | ~8B–10B                                  |
+| NVIDIA RTX 4070        | 12 GB | Medium | ✘               | ✔                | ~1.5B                                    |
+| NVIDIA RTX 4070 Ti     | 12 GB | Medium | ✘               | ✔                | ~1.5B                                    |
+| NVIDIA RTX 4080        | 16 GB | Medium | ✘               | ✔                | ~2B                                      |
+| NVIDIA RTX 4090        | 24 GB | Large  | ✔               | ✔                | ~4B                                      |
+| NVIDIA RTX 4060 Ti     | 8 GB  | Small  | ✘               | ✔                | ~1B                                      |
+| NVIDIA RTX 4060        | 8 GB  | Small  | ✘               | ✔                | ~1B                                      |
+| NVIDIA RTX 4050        | 6 GB  | Small  | ✘               | ✔                | ~0.75B                                   |
+| NVIDIA RTX 3070        | 8 GB  | Small  | ✘               | ✔                | ~1B                                      |
+| NVIDIA RTX 3060 Ti     | 8 GB  | Small  | ✘               | ✔                | ~1B                                      |
+| NVIDIA RTX 3060        | 12 GB | Medium | ✘               | ✔                | ~1.5B                                    |
+| NVIDIA RTX 3050        | 8 GB  | Small  | ✘               | ✔                | ~1B                                      |
+| NVIDIA GTX 1660 Ti     | 6 GB  | Small  | ✘               | ✔                | ~0.75B                                   |
+| AMD RX 7900 XTX        | 24 GB | Large  | ✔               | ✔                | ~3.5B–4B                                 |
+| AMD RX 7900 XT         | 20 GB | Large  | ✔               | ✔                | ~3B                                      |
+| AMD RX 7800 XT         | 16 GB | Medium | ✘               | ✔                | ~2B                                      |
+| AMD RX 7700 XT         | 12 GB | Medium | ✘               | ✔                | ~1.5B                                    |
+| AMD RX 7600            | 8 GB  | Small  | ✘               | ✔                | ~1B                                      |
 
-The 13M LLM training is the training of a 13+ million-parameter model, and the 2B LLM training is the training of a 2+ billion-parameter model. The data size is categorized as small, medium, and large. The small data size is around 1 GB, the medium data size is around 5 GB, and the large data size is around 10 GB.
+13M LLM 训练的是 13+ 百万-参数 的模型, 2B LLM 训练的是 2+ 十亿-参数 的模型. 数据量分为小、中、大三类. 小型数据集大约 1 GB, 中型数据集大约 5 GB, 以及大型数据集大约 10 GB.
 
-## Code Structure
+## 代码结构
 
-The codebase is organized as follows:
+仓库代码结构如下:
 ```bash
 train-llm-from-scratch/
 ├── src/          
 │   ├── models/   
-│   │   ├── mlp.py       # Definition of the Multi-Layer Perceptron (MLP) module
-│   │   ├── attention.py # Definitions for attention mechanisms (single-head, multi-head)
-│   │   ├── transformer_block.py # Definition of a single Transformer block
-│   │   ├── transformer.py     # Definition of the main Transformer model
+│   │   ├── mlp.py       # 多头感知器 (MLP) 定义
+│   │   ├── attention.py # 注意力机制定义 (单头, 多头)
+│   │   ├── transformer_block.py # 单个编解码器定义
+│   │   ├── transformer.py     # 编解码器定义
 ├── config/       
-│   └── config.py    # Contains default configurations (model parameters, file paths, etc.)
+│   └── config.py    # 默认参数配置 (模型参数, 文件路径, 等等.)
 ├── data_loader/  
-│   └── data_loader.py # Contains functions for creating data loaders/iterators
+│   └── data_loader.py # 训练数据加载器和迭代器
 ├── scripts/      
-│   ├── train_transformer.py # Script for training the Transformer model
-│   ├── data_download.py   # Script for downloading the dataset
-│   ├── data_preprocess.py # Script for preprocessing the downloaded data
-│   ├── generate_text.py   # Script for generating text using a trained model
-├── data/         # Directory to store the dataset
-│   ├── train/     # Contains training data
-│   └── val/       # Contains validation data
-├── models/       # Directory where trained models are saved
+│   ├── train_transformer.py # 训练模型的代码
+│   ├── data_download.py   # 下载数据集的脚本
+│   ├── data_preprocess.py # 预训练下载的数据
+│   ├── generate_text.py   # 使用训练的模型生成文本
+├── data/         # 数据局存储文件夹
+│   ├── train/     # 训练数据
+│   └── val/       # 校验数据
+├── models/       # 模型存储文件夹
 ```
 
-`scripts/` directory contains scripts for downloading the dataset, preprocessing the data, training the model, and generating text using the trained model. `src/models/` directory contains the implementation of the transformer model, multi-layer perceptron (MLP), attention mechanisms, and transformer blocks.`config/` directory contains the configuration file with default parameters. `data_loader/` directory contains functions for creating data loaders/iterators.
+`scripts/` 目录包含下载数据集、预训练数据、训练模型以及使用训练好的模型生成文本. `src/models/` 目录包含实现transformer模型, 多层感知器, 注意力机制 以及 编解码模块.`config/` 目录中是默认配置文件. `data_loader/` 目录主要是数据的加载器和迭代器.
 
-## Usage
+## 用法
 
-Clone the repository and navigate to the directory:
+克隆仓库代码后进入项目目录:
 ```bash
 git clone https://github.com/FareedKhan-dev/train-llm-from-scratch.git
 cd train-llm-from-scratch
 ```
 
-if you encounter any issues regarding the imports, make sure to change pythonpath to the root directory of the project:
+如果你在导入依赖的时候遇到报错, 先确保pythonpath指向项目的根目录:
 ```bash
 export PYTHONPATH="${PYTHONPATH}:/path/to/train-llm-from-scratch"
 
@@ -156,75 +156,75 @@ export PYTHONPATH="${PYTHONPATH}:/path/to/train-llm-from-scratch"
 export PYTHONPATH="$PYTHONPATH:."
 ```
 
-Install the required dependencies:
+安装依赖:
 ```bash
 pip install -r requirements.txt
 ```
 
-You can modify the transformer architecture under `src/models/transformer.py` and the training configurations under `config/config.py`.
+你可以在 `src/models/transformer.py` 文件中修改编解码架构 以及 在 `config/config.py` 文件中修改训练配置.
 
 
-To download the training data, run:
+下载训练数据集, 运行以下代码:
 ```bash
 python scripts/data_download.py
 ```
 
-The script supports the following arguments:
-* `--train_max`: Maximum number of training files to download. Default is 1 (Max equal to 30) Each file is around 11 GB.
-* `--train_dir`: Directory for storing training data. Default is `data/train`.
-* `--val_dir`: Directory for storing validation data. Default is `data/val`.
+脚本提供以下参数:
+* `--train_max`: 指定下载训练文件的最大数量. 默认为 1 (最大为 30) 每个文件大约 11 GB.
+* `--train_dir`: 指定训练数据的保存目录. 默认为 `data/train`.
+* `--val_dir`: 指定校验数据的保存目录. 默认为 `data/val`.
 
-To preprocess the downloaded data, run:
+对下载数据进行预训练,运行以下代码:
 ```bash
 python scripts/data_preprocess.py
 ```
 
-The script supports the following arguments:
-- `--train_dir`: Directory where the training data files are stored (default is `data/train`).
-- `--val_dir`: Directory where the validation data files are stored (default is `data/val`).
-- `--out_train_file`: Path to store the processed training data in HDF5 format (default is `data/train/pile_train.h5`).
-- `--out_val_file`: Path to store the processed validation data in HDF5 format (default is `data/val/pile_dev.h5`).
-- `--tokenizer_name`: Name of the tokenizer to use for processing the data (default is `r50k_base`).
-- `--max_data`: Maximum number of JSON objects ([lines](#training-data-info)) to process from each dataset (both train and validation). The default is 1000.
+脚本提供以下参数:
+- `--train_dir`: 指定训练数据保存目录 (默认为 `data/train`).
+- `--val_dir`: 指定校验数据的保存目录 (默认为 `data/val`).
+- `--out_train_file`: 指定预训练 HDF5 格式的训练数据的存储目录 (默认为 `data/train/pile_train.h5`).
+- `--out_val_file`: 指定预训练后 HDF5 格式的校验数据存储目录(默认为 `data/val/pile_dev.h5`).
+- `--tokenizer_name`: 指定训练数据的分词器 (默认为 `r50k_base`).
+- `--max_data`: 指定处理每个JSON数据集的最大([lines](#训练数据))数(训练和校验数据集). 默认为 1000.
 
-Now that the data is preprocessed, you can train the 13 million parameter llm by changing the configuration in `config/config.py` to this:
+现在数据已经预处理好了, 修改 `config/config.py` 中的默认配置后你就可以开始训练你的 13 百万 参数 LLM了:
 
 ```python
-# Define vocabulary size and transformer configuration (3 Billion)
-VOCAB_SIZE = 50304          # Number of unique tokens in the vocabulary
-CONTEXT_LENGTH = 128        # Maximum sequence length for the model
-N_EMBED = 128               # Dimension of the embedding space
-N_HEAD = 8                  # Number of attention heads in each transformer block
-N_BLOCKS = 1               # Number of transformer blocks in the model
+# 定义词表(token 词典总数量，LLM 常见 32000、50257)大小 以及 transformer 配置 (3 Billion)
+VOCAB_SIZE = 50304          # 词表中不重复(唯一标记)的token总数
+CONTEXT_LENGTH = 128        # 模型最大序列长度(上下文长度)
+N_EMBED = 128               # 词嵌入空间维度
+N_HEAD = 8                  # 每个编解码器中注意力机制数量
+N_BLOCKS = 1               # 模型中编解码器的数量
 ```
 
-To train the model, run:
+开始训练模型, 运行以下代码:
 ```bash
 python scripts/train_transformer.py
 ```
 
-It will start training the model and save the trained model in the `models/` default directory or the directory specified in the configuration file.
+运行后程序会开始训练模型, 并将模型保存到 `models/` 默认目录或者你在配置文件中修改后的目录.
 
-To generate text using the trained model, run:
+要使用训练好的模型生成文本, 运行以下代码:
 ```bash
 python scripts/generate_text.py --model_path models/your_model.pth --input_text hi
 ```
 
-The script supports the following arguments:
-- `--model_path`: Path to the trained model.
-- `--input_text`: Initial text prompt for generating new text.
-- `--max_new_tokens`: Maximum number of tokens to generate (default is 100).
+脚本提供以下参数:
+- `--model_path`: 指定训练好的模型路径.
+- `--input_text`: 指定用于生成文本的初始提示词.
+- `--max_new_tokens`: 生成token的最大数量 (默认为 100).
 
-It will generate text based on the input prompt using the trained model.
+代码会使用指定的模型并根据提示词生成文本.
 
-## Step by Step Code Explanation
+## 手把手代码解读
 
-This section is for those who want to understand the code in detail. I will explain the code step by step, starting from importing the libraries to training the model and generating text.
+这部分为了想详细了解代码的人写的. 我会从导入依赖开始到训练模型和生成文本, 手把手教你们.
 
-Previously, I wrote an article on Medium about creating a [2.3+ million-parameter](https://levelup.gitconnected.com/building-a-million-parameter-llm-from-scratch-using-python-f612398f06c2) LLM using the Tiny Shakespeare dataset, but the output didn’t make sense. Here is a sample output:
+之前, 我在Medium发表过一篇关于使用Tiny Shakespeare数据集创建一个[2.3+ million-parameter](https://levelup.gitconnected.com/building-a-million-parameter-llm-from-scratch-using-python-f612398f06c2) LLM, 但是输出并不理想. 下面是输出的示例:
 
 ```bash
-# 2.3 Million Parameter LLM Output
+# 230万参数的LLM输出
 ZELBETH:
 Sey solmenter! tis tonguerered if
 Vurint as steolated have loven OID the queend refore
@@ -240,7 +240,7 @@ I found that **13+ million-parameter** models are enough to start making sense i
 
 I recommend you **first train a 13+ million-parameter** model using the script available in my GitHub repository. You will get results within one day, instead of waiting for a longer time, or if your local GPU might not be strong enough to train a billion-parameter model.
 
-### Importing Libraries
+### 依赖导入
 
 Let’s import the required libraries that will be used throughout this blog:
 
@@ -281,7 +281,7 @@ import tiktoken
 import math
 ```
 
-### Preparing the Training Data
+### 准备训练数据
 
 Our training dataset needs to be diverse, containing information from different domains, and The Pile is the right choice for it. Although it is 825 GB in size, we will stick to only a small portion of it, i.e., 5%–10%. Let’s first download the dataset and see how it works. I will be downloading the version available on [HuggingFace](https://huggingface.co/datasets/monology/pile-uncopyrighted).
 
@@ -454,7 +454,7 @@ First few elements of the 'tokens' dataset:
 ```
 We have prepared our dataset for training. Now we will code the transformer architecture and look into its theory correspondingly.
 
-### Transformer Overview
+### 模型预览
 
 Let’s have a quick look at how a transformer architecture is used to process and understand text. It works by breaking text into smaller pieces called tokens and predicting the next token in the sequence. A transformer has many layers, called transformer blocks, stacked on top of each other, with a final layer at the end to make the prediction.
 
@@ -494,7 +494,7 @@ Let’s read through the flow of our architecture that we will be coding:
 
  11. The model generates text by repeatedly predicting the next most likely token.
 
-### Multi Layer Perceptron (MLP)
+### 多层感知器 (MLP)
 
 MLP is a fundamental building block within the transformer’s feed-forward network. Its role is to introduce non-linearity and learn complex relationships within the embedded representations. When defining an MLP module, an important parameter is n_embed, which defines the dimensionality of the input embedding.
 
@@ -563,7 +563,7 @@ class MLP(nn.Module):
 
 We just coded our MLP part, where the __init__ method initializes a hidden linear layer that expands the input embedding size (n_embed) and a projection layer that reduces it back. ReLU activation is applied after the hidden layer. The forward method defines the data flow through these layers, applying the hidden layer and ReLU via forward_embedding, and the projection layer via project_embedding.
 
-### Single Head Attention
+### 单头注意力机制
 
 The attention head is the core part of our model. Its purpose is to focus on relevant parts of the input sequence. When defining a Head module, some important parameters are head_size, n_embed, and context_length. The head_size parameter determines the dimensionality of the key, query, and value projections, influencing the representational capacity of the attention mechanism.
 
@@ -619,7 +619,7 @@ class Head(nn.Module):
 
 Our attention head class’s __init__ method initializes linear layers for key, query, and value projections, each projecting the input embedding (n_embed) to head_size. A lower triangular matrix based on context_length is used for causal masking. The forward method calculates attention weights by scaling the dot product of the query and key, applies the causal mask, normalizes the weights using softmax, and computes the weighted sum of the values to produce the attention output.
 
-### Multi Head Attention
+### 多头注意力机制
 
 To capture diverse relationships within the input sequence, we are going to use the concept of multi-head attention. The MultiHeadAttention module manages multiple independent attention heads operating in parallel.
 
@@ -658,7 +658,7 @@ class MultiHeadAttention(nn.Module):
 
 Now that we have defined the MultiHeadAttention class, which combines multiple attention heads, the __init__ method initializes a list of Head instances (a total of n_head), each with a head_size of n_embed // n_head. The forward method applies each attention head to the input x and concatenates their outputs along the last dimension, merging the information learned by each head.
 
-### Transformer Block
+### 编解码器
 
 To create a billion-parameter model, we definitely need a deep architecture. For that, we need to code a transformer block and stack them. The key parameters of a block are n_head, n_embed, and context_length. Each block comprises a multi-head attention layer and a feed-forward network (MLP), with layer normalization applied before each and residual connections after each.
 
@@ -718,7 +718,7 @@ Our Block class represents a single transformer block. The __init__ method initi
 
 The forward method implements the block's forward pass, applying layer normalization and multi-head attention with a residual connection, followed by another layer normalization and the MLP, again with a residual connection. The forward_embedding method provides an alternative forward pass focused on the attention and initial MLP embedding stages.
 
-### The Final Model
+### 最终模型
 
 So far, we have coded small components of the transformer model. Next, we integrate token and position embeddings with a series of transformer blocks to perform sequence-to-sequence tasks. To do that, we need to code several key parameters: n_head, n_embed, context_length, vocab_size, and N_BLOCKS.
 
@@ -829,7 +829,7 @@ Our Transformer class `__init__` method initializes token and position embedding
 
 The _pre_attn_pass method combines token and position embeddings. The forward method processes the input sequence through the embedding layers and the series of transformer blocks, applies final layer normalization, and generates logits. It also calculates the loss if targets are provided. The forward_embedding method provides an intermediate forward pass up to the output of the attention blocks, and the generate method implements token generation.
 
-### Batch Processing
+### 训练批次
 
 When we train a deep learning model on big data, we process it in batches due to GPU availability. So, let’s create a get_batch_iterator function, taking the data_path to an HDF5 file, the desired batch_size, the context_length for each sequence, and the device to load the data onto.
 
@@ -898,7 +898,7 @@ def get_batch_iterator(data_path, batch_size, context_length, device="gpu"):
 ```
 Our get_batch_iterator function handles the loading and batching of training data. It takes data_path, batch_size, context_length, and device as input. The function opens the HDF5 file, shuffles the data, and then enters an infinite loop to generate batches. In each iteration, it selects a random subset of the data to form a batch of input sequences (xb) and their corresponding target sequences (yb).
 
-### Training Parameters
+### 训练参数
 
 Now that we have coded our model, we need to define the training parameters, such as the number of heads, blocks, and more, along with the data path.
 
@@ -954,7 +954,7 @@ default_config = {
 
 For most of the parameters, I have used the most common values and also stored them in a dictionary for easy access. Here, the parameters are for a billion-parameter model. If you want to train a model with millions of parameters, you can reduce the main parameters, which include CONTEXT_LENGTH, N_EMBED, N_HEAD, and N_BLOCKS. However, you can also run the million-parameter model script in my GitHub repository.
 
-### Training the Model
+### 模型训练
 
 Let's initialize our transformer model and check its total number of parameters.
 ```python
@@ -1083,7 +1083,7 @@ for step in pbar:
       print("Training data iterator finished early.")
       break
 ```
-### Saving the Trained Model
+### 保存训练模型
 
 Since our training loop has the ability to handle errors, in case the loop throws any error, it will save our partially trained model to avoid loss. Once the training is complete, we can save our trained model to use it later for inference.
 
@@ -1118,7 +1118,7 @@ print(f"Finished training. Train loss: {train_loss:.4f}, Dev loss: {dev_loss:.4f
 ```
 The final training loss for the billion-parameter model is 0.2314, and the dev loss is 0.643.
 
-### Training Loss
+### 训练损失
 
 When I plot the loss of both the million- and billion-parameter models, they look very different.
 
@@ -1130,7 +1130,7 @@ The million-parameter model’s loss goes down more easily from the start. It do
 
 We now have our saved model. We can finally use it for inference and see how it generates text. 😓
 
-### Generating Text
+### 文本生成
 
 Let’s create a function to generate text from our saved model, which takes the saved model path and the encoder as inputs and returns the generated text.
 
@@ -1227,7 +1227,7 @@ print(m_output)  # Output from the Million model
 
 Our million parameter model gives us the motivation that we can have a very narrow, goal-oriented LLM under 1B in size, while our 1B trained model shows us that the architecture needs to be coded in great depth with proper consideration. Otherwise, it won’t improve training or performance compared to the million-parameter model. It will just overfit the data unless you have a deep architecture for the billion-sized model.
 
-# What’s Next
+# 接下来呢
 
 I recommend that you create the 13+ million-parameter model and then start scaling it by adding the next 100 parameters, improving its ability to handle shorter contexts. It’s up to you how many more parameters you want to train for specific tasks. Then, for the remaining parameters under 1B, try fine-tuning the model on domain-specific data, such as writing emails or essays, and see how it generates the text.
 
