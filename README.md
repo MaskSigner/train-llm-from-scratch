@@ -619,9 +619,9 @@ Our attention head class’s __init__ method initializes linear layers for key, 
 
 ### 多头注意力机制
 
-To capture diverse relationships within the input sequence, we are going to use the concept of multi-head attention. The MultiHeadAttention module manages multiple independent attention heads operating in parallel.
+为了捕获输入序列中的多样的关系, 我们将引入多头注意力机制(multi-head attention). 多头注意力机制(MultiHeadAttention)模块用于管理多个相互独立、并行运行的注意力机制.
 
-The key parameter here is n_head, which determines the number of parallel attention heads. The input embedding dimension (n_embed) and context_length are also necessary to instantiate the individual attention heads. Each head processes the input independently, projecting it into a lower-dimensional subspace of size n_embed // n_head. By having multiple heads, the model can attend to different aspects of the input simultaneously.
+其中关键的参数是嵌入维度(n_head), 它决定了并行注意力机的数量. 实例化各个注意力机制的时候, 同样必须要传入嵌入维度(n_embed)和上下文长度(context_length)两个参数. 每个示例都会独立处理输入的数据, 会将输入映射到 `n_embed // n_head(表示进行整除运算,计算单个注意力机需要的注意力维度)` 维度的低维子空间(子张量).通过多头模块, 模型能过同时捕捉输入文本中不同维度的语义特征.
 
 ![Multi Head Attention by [Fareed Khan](undefined)](https://cdn-images-1.medium.com/max/6864/1*fa-YjrZdtbpuCLp7An99dg.png)
 
@@ -630,10 +630,9 @@ The key parameter here is n_head, which determines the number of parallel attent
 
 class MultiHeadAttention(nn.Module):
     """
-    Multi-Head Attention module.
+    多头注意力模块
 
-    This module combines multiple attention heads in parallel. The outputs of each head
-    are concatenated to form the final output.
+    该模块并行整合多个注意力机, 将各个注意力头的输出结果拼接之后作为最终的输出. 
     """
     def __init__(self, n_head, n_embed, context_length):
         super().__init__()
@@ -641,26 +640,27 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, x):
         """
-        Forward pass through the multi-head attention.
+        多头注意力机的前向传播
 
-        Args:
-            x (torch.Tensor): Input tensor of shape (B, T, C).
+        参数:
+            x (torch.Tensor): 输入(B, T, C)形状的张量.
 
-        Returns:
-            torch.Tensor: Output tensor after concatenating the outputs of all heads.
+        返回:
+            torch.Tensor: 拼接所有注意力机的返回作为输出张量.
         """
         # Concatenate the output of each head along the last dimension (C)
         x = torch.cat([h(x) for h in self.heads], dim=-1)
         return x
 ```
 
-Now that we have defined the MultiHeadAttention class, which combines multiple attention heads, the __init__ method initializes a list of Head instances (a total of n_head), each with a head_size of n_embed // n_head. The forward method applies each attention head to the input x and concatenates their outputs along the last dimension, merging the information learned by each head.
+现在我们已经定义了由多个注意力头组层的多头注意机制(MultiHeadAttention)的类, __init__ 方法初始化了多个注意力头的实例(总数为嵌入维度,n_head), 每个注意力机的维度为 `n_embed // n_head`.前向传播函数将张量x拆分作为各注意力机的输入，并在最后一维拼接所有注意力机的输出，融合每个注意力机学到的特征信息。
 
 ### 编解码器
 
-To create a billion-parameter model, we definitely need a deep architecture. For that, we need to code a transformer block and stack them. The key parameters of a block are n_head, n_embed, and context_length. Each block comprises a multi-head attention layer and a feed-forward network (MLP), with layer normalization applied before each and residual connections after each.
+要训练一个 十亿-参数 的模型, 必须使用深层网络架构. 为了达到这个目的, 我们需要编写transformer模块, 并将他们堆叠起来. 模块的核心参数是注意力机数量(n_head), 词嵌入维度(n_embed)以及上下文长度. 每个模块包含一个多头注意力机层和前馈网络(MLP), 每层开始运算之前会执行层归一化(layer normalization)处理, 每层运算之后有残差连接(residual connections).
 
-Layer normalization, parameterized by the embedding dimension n_embed, helps stabilize training. The multi-head attention mechanism, as described before, takes n_head, n_embed, and context_length. The MLP also utilizes the embedding dimension n_embed. These components work together to process the input and learn complex patterns.
+层归一化(Layer normalization)将词嵌入维度(n_embed)作为的参数, 这将有助于稳定模型的训练过程. 
+The multi-head attention mechanism, as described before, takes n_head, n_embed, and context_length. The MLP also utilizes the embedding dimension n_embed. These components work together to process the input and learn complex patterns.
 
 ![Transformer Block by [Fareed Khan](undefined)](https://cdn-images-1.medium.com/max/6942/1*uLWGajZc6StnQHfZjcb6eA.png)
 
