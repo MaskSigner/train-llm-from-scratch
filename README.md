@@ -358,93 +358,91 @@ Line: 1
 }
 ```
 
-现在我们对数据集进行编码(分词处理). 
-Now we need to encode (tokenize) our dataset. Our goal is to have an LLM that can at least output proper words. For that, we need to use an already available tokenizer. We will use the tiktoken open-source tokenizer by OpenAI. We will use the r50k_base tokenizer, which is used for the ChatGPT (GPT-3) model, to tokenize our dataset.
+现在我们对数据集进行编码(分词处理). 我们的目标是训练出一个至少能够输出正确语法的LLM. 因此, 我们需要使用一个成熟的分词器. 我们决定使用 OpenAi 的开源分词器 `tiktoken`. 我们使用 ChatGPT (GPT-3) 模型的分词器 `r50k_base` 来对我们的数据集进行处理.
 
-We need to create a function for this to avoid duplication, as we will be tokenizing both the train and validation datasets.
+当我们对训练数据集和验证数据集进行处理的时候, 还需要创建一个方法避免分词重复. 
 
 ```python
 def process_files(input_dir, output_file):
     """
-    Process all .zst files in the specified input directory and save encoded tokens to an HDF5 file.
-
-    Args:
-        input_dir (str): Directory containing input .zst files.
-        output_file (str): Path to the output HDF5 file.
+    将指定文件夹的所有 .zst 文件进行处理, 然后保存分词后的 HDF5 文件
+    
+    参数:
+        输入文件夹路径 (str): 包含所有 .zst 文件的文件夹.
+        输出文件夹路径 (str): 保存所有输出的 HDF5 文件的文件夹.
     """
     with h5py.File(output_file, 'w') as out_f:
-        # Create an expandable dataset named 'tokens' in the HDF5 file
+        # 在HDF5文件中创建 'tokens' 可扩展数据集
         dataset = out_f.create_dataset('tokens', (0,), maxshape=(None,), dtype='i')
         start_index = 0
 
-        # Iterate through all .zst files in the input directory
+        # 迭代输入文件夹中所有的文件
         for filename in sorted(os.listdir(input_dir)):
             if filename.endswith(".jsonl.zst"):
                 in_file = os.path.join(input_dir, filename)
                 print(f"Processing: {in_file}")
 
-                # Open the .zst file for reading
+                # 打开 .zst 文件并读取
                 with zstd.open(in_file, 'r') as in_f:
-                    # Iterate through each line in the compressed file
+                    # 遍历压缩文件中的所有数据
                     for line in tqdm(in_f, desc=f"Processing {filename}"):
-                        # Load the line as JSON
+                        # 将读入的数据转为JSON
                         data = json.loads(line)
-
-                        # Append the end-of-text token to the text and encode it
+                        
+                        # 在文本末尾添加结束标记(end-of-text token)并编码
                         text = data['text'] + "<|endoftext|>"
                         encoded = enc.encode(text, allowed_special={'<|endoftext|>'})
                         encoded_len = len(encoded)
 
-                        # Calculate the end index for the new tokens
+                        # 计算tokens的结束索引
                         end_index = start_index + encoded_len
 
-                        # Expand the dataset size and store the encoded tokens
+                        # 扩大数据集然后保存编码后的tokens
                         dataset.resize(dataset.shape[0] + encoded_len, axis=0)
                         dataset[start_index:end_index] = encoded
-
-                        # Update the start index for the next batch of tokens
+                        
+                        # 为下一个循环更新开始索引
                         start_index = end_index
 ```
+关于这个方法, 有两个重要点需要说明:
 
-There are two important points regarding this function:
+ 1. 我们将编码后的数据存储在 HDF5 文件中, 以便之后训练的时候可以快速访问. 
 
- 1. We are storing the tokenized data in an HDF5 file, which allows us flexibility for quicker data access while training the model.
+ 2. 为每个文本添加 `<|endoftext|>` 结束标记, 向模型说明上下文已经结束. 这对于模型生成有意义的输出有很大的帮助.
 
- 2. Appending the `<|endoftext|>` token marks the end of each text sequence, signaling to the model that it has reached the end of a meaningful context, which helps in generating coherent outputs.
-
-Now we can simply encode our train and validation datasets using:
+接下来我们可以使用以下代码来对我们的训练和验证数据集进行编码:
 
 ```python
-# Define tokenized data output directories
+# 定义编码后的数据输出文件
 out_train_file = "data/train/pile_train.h5"
 out_val_file = "data/val/pile_dev.h5"
 
-# Loading tokenizer of (GPT-3/GPT-2 Model)
+# 加载(GPT-3/GPT-2 Model)的分词器
 enc = tiktoken.get_encoding('r50k_base')
 
-# Process training data
+# 处理训练数据
 process_files(train_dir, out_train_file)
 
-# Process validation data
+# 处理验证数据
 process_files(val_dir, out_val_file)
 ```
 
-Let’s take a look at the sample of our tokenized data:
+现在让我们看一下我们编码后的数据:
 
 ```python
  with h5py.File(out_val_file, 'r') as file:
-     # Access the 'tokens' dataset
+     # 访问 'tokens' 数据集
      tokens_dataset = file['tokens']
      
-     # Print the dtype of the dataset
+     # 输出数据集的 Dtype
      print(f"Dtype of 'tokens' dataset: {tokens_dataset.dtype}")
      
-     # load and print the first few elements of the dataset
+     # 加载并打印少量开头的数据集
      print("First few elements of the 'tokens' dataset:")
-     print(tokens_dataset[:10])  # First 10 token
+     print(tokens_dataset[:10])  # 输出开头的10个token
 ```
 
-The output of the above code is this:
+上面代码输出如下:
 
 ```python
 #### OUTPUT ####
@@ -453,11 +451,12 @@ Dtype of 'tokens' dataset: int32
 First few elements of the 'tokens' dataset:
 [ 2725  6557    83 23105   157   119   229    77  5846  2429]
 ```
-We have prepared our dataset for training. Now we will code the transformer architecture and look into its theory correspondingly.
+我们已经准备好了训练的数据集. 接下来我们要编写 transformer 的架构并深入理解其原理.
 
 ### 模型预览
 
-Let’s have a quick look at how a transformer architecture is used to process and understand text. It works by breaking text into smaller pieces called tokens and predicting the next token in the sequence. A transformer has many layers, called transformer blocks, stacked on top of each other, with a final layer at the end to make the prediction.
+让我们快速预览一下 transformer 架构是如何处理和理解文本的. 
+It works by breaking text into smaller pieces called tokens and predicting the next token in the sequence. A transformer has many layers, called transformer blocks, stacked on top of each other, with a final layer at the end to make the prediction.
 
 Each transformer block has two main components:
 
