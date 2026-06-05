@@ -463,7 +463,7 @@ First few elements of the 'tokens' dataset:
 
 * **MLP (多层感知器(Multi-Layer Perceptron))**: 这是一个简单的前向反馈神经网络(feed-forward neural network). 它会将自注意力机制标注的信息进一步处理. MLP有一个输入层用来接收自注意力机制的输出数据. 一个隐藏层将对数据进行更复杂的处理, 输出层则会将结果传递给下一个transformer模块(blocks).
 
-自注意力机制和MLP共同协作时, 自注意力机制决定模型 "该想什么", 而 MLP 决定模型 "如何思考". 堆叠起的多个transformer模块(blocks)让模型能够理解文本中复杂的语义和语境关联, 但是这也不是包来的. 
+自注意力机制和MLP共同协作时, 自注意力机制决定模型 "该想什么", 而 MLP 决定模型 "如何思考". 堆叠起的多个transformer模块(blocks)让模型能够理解文本中复杂的语义和语境关系, 但是这也不是包来的. 
 
 让我们看看我们即将实现的更简化、更容易得架构图, 而不是原论文中的架构图.
 
@@ -471,48 +471,47 @@ First few elements of the 'tokens' dataset:
 **图片就不翻译了, 但也可以结合下面的解释看, 我会保留关键词**
 ![Transformer Architecture by [Fareed Khan](undefined)](https://cdn-images-1.medium.com/max/11808/1*QXmeA-H52C-p82AwawslbQ.png)
 
-Let’s read through the flow of our architecture that we will be coding:
+让我们一起来梳理一下这个架构:
 
- 1. Input tokens are converted to embeddings and combined with position information.
+ 1. 输入的tokens会被转化为词嵌入(embeddings), 并与位置信息绑定.
 
- 2. The model has 64 identical transformer blocks that process data sequentially.
+ 2. 模型有64个独立的transformer模块(blocks)会顺序处理数据. 
 
- 3. Each block first runs multi-head attention to look at relationships between tokens.
+ 3. 每个模块会先使用多头注意力机制(multi-head attention)标记分词(tokens)之间的关系. 
 
- 4. Each block then processes data through an MLP that expands and then compresses the data.
+ 4. 每个模块随后会使用 MLP 对数据进行升维和降维处理特征.(先升维扩展特征, 再降维压缩特征). 
 
- 5. Each step uses residual connections (shortcuts) to help information flow.
+ 5. 每一步都使用残差连接(residual connections)(捷径支路(shortcuts,残差支路通俗叫法))来保障信息流畅传递. 
 
- 6. Layer normalization is used throughout to stabilize training.
+ 6. 全程使用层归一化(Layer normalization)来稳定模型训练.
 
- 7. The attention mechanism calculates which tokens should pay attention to each other.
+ 7. 注意力机制会计算各个token之间需要付出的权重. 
 
- 8. The MLP expands the data to 4x size, applies ReLU, and then compresses it back down.
+ 8. MLP先将数据升维到原来的4倍, 经过ReLU激活函数运算后, 再降维到原始维度.
 
- 9. The model uses 16 attention heads to capture different types of relationships.
+ 9. 模型使用16个注意力头, 用以捕捉不同类型的语义关联. 
 
- 10. The final layer converts the processed data into vocabulary-sized predictions.
+ 10. 最后一层处理后的特征数据转化为词表维度(vocabulary-sized)的预测概率. 
 
- 11. The model generates text by repeatedly predicting the next most likely token.
+ 11. 模型通过反复预测概率最高的下一个词来生成文本. 
 
 ### 多层感知器 (MLP)
 
-MLP is a fundamental building block within the transformer’s feed-forward network. Its role is to introduce non-linearity and learn complex relationships within the embedded representations. When defining an MLP module, an important parameter is n_embed, which defines the dimensionality of the input embedding.
+MLP是transformer前向反馈网络中的基础组成模块. 它的作用是引入非线性以及学习词嵌入特征中的复杂语义关系. 当定义一个MLP模块的时候, 一个重要的参数是嵌入维度(n_embed), 它定义了输入参数的维度.
 
-The MLP typically consists of a hidden linear layer that expands the input dimension by a factor (often 4, which we will use), followed by a non-linear activation function, commonly ReLU. This structure allows our network to learn more complex features. Finally, a projection linear layer maps the expanded representation back to the original embedding dimension. This sequence of transformations enables the MLP to refine the representations learned by the attention mechanism.
+MLP通常包含一个隐藏层, 用来根据一个参数(通常是4, 我们也会使用这个)将输入的参数扩展到相应的维度, 随后是一个非线性的激活函数, 通常是ReLU. 这个架构允许我们的网络学习更复杂的特征数据. 最后, 线性投影层将升维的特征映射降维到原来(嵌入数据)的维度. 这一系列的变换让 MLP 能够优化注意力机制学习到的特征. 
 
 ![MLP by [Fareed Khan](undefined)](https://cdn-images-1.medium.com/max/4866/1*GXxiLMW4kUXqOEimBA7g0A.png)
 
 ```python
-# --- MLP (Multi-Layer Perceptron) Class ---
+# --- MLP (多层感知机,Multi-Layer Perceptron) Class ---
 
 class MLP(nn.Module):
     """
-    A simple Multi-Layer Perceptron with one hidden layer.
+    一个只有一个隐藏层的简单多层感知机.
 
-    This module is used within the Transformer block for feed-forward processing.
-    It expands the input embedding size, applies a ReLU activation, and then projects it back
-    to the original embedding size.
+    Transformer使用这个模块完成前向反馈的运算处理.
+    它会将输入的词嵌入升维, 经过ReLU激活函数处理了后, 再将维度映射还原回去.
     """
     def __init__(self, n_embed):
         super().__init__()
@@ -522,14 +521,13 @@ class MLP(nn.Module):
 
     def forward(self, x):
         """
-        Forward pass through the MLP.
+        多层感知机的前向传播
 
-        Args:
-            x (torch.Tensor): Input tensor of shape (B, T, C), where B is batch size,
-                              T is sequence length, and C is embedding size.
+        参数:
+            x (torch.Tensor,torch的张量): 输入(B, T, C)形状的张量, 其中B是批次大小, T是上下文长度, C 是词嵌入大小.
 
-        Returns:
-            torch.Tensor: Output tensor of the same shape as the input.
+        返回:
+            torch.Tensor: 返回同样形状的张量作为输入.
         """
         x = self.forward_embedding(x)
         x = self.project_embedding(x)
@@ -537,40 +535,39 @@ class MLP(nn.Module):
 
     def forward_embedding(self, x):
         """
-        Applies the hidden linear layer followed by ReLU activation.
+        实现ReLU激活函数的线性隐藏层
 
-        Args:
-            x (torch.Tensor): Input tensor.
+        参数:
+            x (torch.Tensor): 输入的张量.
 
-        Returns:
-            torch.Tensor: Output after the hidden layer and ReLU.
+        返回:
+            torch.Tensor: 经过隐藏层和ReLU激活的输出结果.
         """
         x = self.relu(self.hidden(x))
         return x
 
     def project_embedding(self, x):
         """
-        Applies the projection linear layer.
+        实现投影线性层的运算
 
-        Args:
-            x (torch.Tensor): Input tensor.
+        参数:
+            x (torch.Tensor): 输入向量.
 
-        Returns:
-            torch.Tensor: Output after the projection layer.
+        返回:
+            torch.Tensor: 映射层运算后的输出.
         """
         x = self.proj(x)
         return x
 ```
-
-We just coded our MLP part, where the __init__ method initializes a hidden linear layer that expands the input embedding size (n_embed) and a projection layer that reduces it back. ReLU activation is applied after the hidden layer. The forward method defines the data flow through these layers, applying the hidden layer and ReLU via forward_embedding, and the projection layer via project_embedding.
+我们刚完成了 MLP 部分的编码, __init__ 方法初始化了一个影藏线性层将词嵌入升维(n_embed) 然后 映射层再将其降维回来. ReLU激活函数是在隐藏层之后起作用的. 前向传播方法定义了数据在各层之前的流转, `forward_embedding` 方法执行影藏层和ReLU激活层运算, 再通过 `project_embedding` 方法映射将维度还原.
 
 ### 单头注意力机制
 
-The attention head is the core part of our model. Its purpose is to focus on relevant parts of the input sequence. When defining a Head module, some important parameters are head_size, n_embed, and context_length. The head_size parameter determines the dimensionality of the key, query, and value projections, influencing the representational capacity of the attention mechanism.
+注意力机制是我们模型的核心. 它的作用是让模型聚焦输入序列中的具有有效信息的部分. 当定义注意力机制模块的时候, 这些参数非常重要: 机制维度(head_size), 嵌入维度(n_embed), 上下文长度(context_length). head_size 参数决定键(key)、查询(query)、映射值(value projections)三个向量的维度，进而影响注意力机制的特征标记能力。
 
-The input embedding dimension n_embed defines the size of the input to these projection layers. context_length is used to create a causal mask, ensuring that the model only attends to preceding tokens.
+输入嵌入维度(n_embed)定义了映射层的输入大小. 上下文长度参数用于构建因果掩码(causal mask,下三角掩码)，确保模型只能观测当前位置之前的词元(tokens).
 
-Within the Head, linear layers (nn.Linear) for key, query, and value are initialized without bias. A lower triangular matrix (tril) of size context_length x context_length is registered as a buffer to implement causal masking, preventing the attention mechanism from attending to future tokens.
+在注意力机制模块内部, 用于生成键（K,key）、查询（Q,query）、值（V,value）的线性层（nn.Linear）均以无偏置的方式初始化. 将一个形状为 context_length × context_length 的下三角矩阵（tril）注册为缓冲区，用于实现因果掩码(causal masking, 下三角掩码), 防止注意力机制关注到未来的词元(tokens).
 
 ![Single Head Attention by [Fareed Khan](undefined)](https://cdn-images-1.medium.com/max/5470/1*teNwEhicq9ebVURiMS8WkA.png)
 
@@ -579,42 +576,42 @@ Within the Head, linear layers (nn.Linear) for key, query, and value are initial
 
 class Head(nn.Module):
     """
-    A single attention head.
+    单头注意力机制
 
-    This module calculates attention scores and applies them to the values.
-    It includes key, query, and value projections, and uses causal masking
-    to prevent attending to future tokens.
+    这个模块用于计算注意力分数 并 将其应用到值向量上. 
+    其中包含键(key)、查询(query)、值(value)的线性投影，并采用因果掩码(causal mask,下三角掩码)机制。
+    用以防止读取后续位置的词元(tokens).
     """
     def __init__(self, head_size, n_embed, context_length):
         super().__init__()
         self.key = nn.Linear(n_embed, head_size, bias=False)   # Key projection
         self.query = nn.Linear(n_embed, head_size, bias=False) # Query projection
         self.value = nn.Linear(n_embed, head_size, bias=False) # Value projection
-        # Lower triangular matrix for causal masking
+        # 用于因果掩码(causal masking)的下三角矩阵
         self.register_buffer('tril', torch.tril(torch.ones(context_length, context_length)))
 
     def forward(self, x):
         """
-        Forward pass through the attention head.
+        单个注意力机制的前向传播运算
 
-        Args:
-            x (torch.Tensor): Input tensor of shape (B, T, C).
+        参数:
+            x (torch.Tensor): 输入(B, T, C)形状的张量.
 
-        Returns:
-            torch.Tensor: Output tensor after applying attention.
+        返回:
+            torch.Tensor: 输出注意力机制计算后的张量.
         """
         B, T, C = x.shape
         k = self.key(x)     # (B, T, head_size)
         q = self.query(x)   # (B, T, head_size)
         scale_factor = 1 / math.sqrt(C)
-        # Calculate attention weights: (B, T, head_size) @ (B, head_size, T) -> (B, T, T)
+        # 计算注意力权重: (B, T, head_size) @ (B, head_size, T) -> (B, T, T)
         attn_weights = q @ k.transpose(-2, -1) * scale_factor
-        # Apply causal masking
+        # 执行因果掩码(causal masking) 
         attn_weights = attn_weights.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
         attn_weights = F.softmax(attn_weights, dim=-1)
         v = self.value(x)   # (B, T, head_size)
-        # Apply attention weights to values
-        out = attn_weights @ v # (B, T, T) @ (B, T, head_size) -> (B, T, head_size)
+        # 利用注意力权重对值向量(values)进行加权运算
+        out = attn_weights @ v # (B, T, T) @ (B, T, head_size(注意力维度)) -> (B, T, head_size(注意力维度))
         return out
 ```
 
