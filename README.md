@@ -455,7 +455,7 @@ First few elements of the 'tokens' dataset:
 
 ### 模型预览
 
-让我们快速预览一下 transformer 架构是如何处理和理解文本的. 
+让我们快速预览一下 transformer 架构是如何处理和理解文本的. 它的原理是
 It works by breaking text into smaller pieces called tokens and predicting the next token in the sequence. A transformer has many layers, called transformer blocks, stacked on top of each other, with a final layer at the end to make the prediction.
 
 Each transformer block has two main components:
