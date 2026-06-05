@@ -615,7 +615,7 @@ class Head(nn.Module):
         return out
 ```
 
-Our attention head class’s __init__ method initializes linear layers for key, query, and value projections, each projecting the input embedding (n_embed) to head_size. A lower triangular matrix based on context_length is used for causal masking. The forward method calculates attention weights by scaling the dot product of the query and key, applies the causal mask, normalizes the weights using softmax, and computes the weighted sum of the values to produce the attention output.
+我们的注意力机类的 __init__ 方法初始化了一个包含键(key),查询(query),值映射(value projections)的线性层, 每一层都将输入的词嵌入(n_embed)向量维度映射至(注意力机)头数量(head_size)的维度. 一个基于上下文长度(context_length)的下三角矩阵用于因果掩码(causal masking). 前向传播方法通过以下步骤计算注意力权重:先对查询(query)向量与键(key)向量的点积进行缩放，随后应用因果掩码(causal mask)，再通过 Softmax 函数归一化权重，最后计算值向量的加权和，从而得到注意力输出。
 
 ### 多头注意力机制
 
@@ -659,8 +659,7 @@ class MultiHeadAttention(nn.Module):
 
 要训练一个 十亿-参数 的模型, 必须使用深层网络架构. 为了达到这个目的, 我们需要编写transformer模块, 并将他们堆叠起来. 模块的核心参数是注意力机数量(n_head), 词嵌入维度(n_embed)以及上下文长度. 每个模块包含一个多头注意力机层和前馈网络(MLP), 每层开始运算之前会执行层归一化(layer normalization)处理, 每层运算之后有残差连接(residual connections).
 
-层归一化(Layer normalization)将词嵌入维度(n_embed)作为的参数, 这将有助于稳定模型的训练过程. 
-The multi-head attention mechanism, as described before, takes n_head, n_embed, and context_length. The MLP also utilizes the embedding dimension n_embed. These components work together to process the input and learn complex patterns.
+层归一化(Layer normalization)将词嵌入维度(n_embed)作为的参数, 这将有助于稳定模型的训练过程. 如之前的描述, 多头注意力机制需要多头数量(n_head), 词嵌入维度(n_embed) 以及 上下文长度作为参数. MLP 同样使用嵌入维度(n_embed). 这些组件共同工作处理输入和学习复杂的语义、语境.
 
 ![Transformer Block by [Fareed Khan](undefined)](https://cdn-images-1.medium.com/max/6942/1*uLWGajZc6StnQHfZjcb6eA.png)
 
@@ -669,7 +668,7 @@ The multi-head attention mechanism, as described before, takes n_head, n_embed, 
 
 class Block(nn.Module):
     """
-    A single Transformer block.
+    单transformer模块
 
     This block consists of a multi-head attention layer followed by an MLP,
     with layer normalization and residual connections.
