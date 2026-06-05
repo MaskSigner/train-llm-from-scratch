@@ -455,19 +455,20 @@ First few elements of the 'tokens' dataset:
 
 ### 模型预览
 
-让我们快速预览一下 transformer 架构是如何处理和理解文本的. 它的原理是
-It works by breaking text into smaller pieces called tokens and predicting the next token in the sequence. A transformer has many layers, called transformer blocks, stacked on top of each other, with a final layer at the end to make the prediction.
+让我们快速预览一下 transformer 架构是如何处理和理解文本的. 它的原理是将文本拆分为细小的token然后预测序列的下一个token.一个transformer有很多层, 称为transformer模块(blocks), 逐层堆叠在一起, 最后一层用于预测.
 
-Each transformer block has two main components:
+每个transformer模块(blocks)都有两个主要的重要的组件:
 
-* **Self-Attention Heads**: These figure out which parts of the input are most important for the model to focus on. For example, when processing a sentence, the attention heads can highlight relationships between words, such as how a pronoun relates to the noun it refers to.
+* **自注意力机制**(**Self-Attention Heads**): 它能确定输入的哪部分是模型最需要关注的. 列如, 在处理一个句子时, 自注意力机制能为模型标注两个词之间的关系, 比如代词和名词之间的关系.
 
-* **MLP (Multi-Layer Perceptron)**: This is a simple feed-forward neural network. It takes the information emphasized by the attention heads and processes it further. The MLP has an input layer that receives data from the attention heads, a hidden layer that adds complexity to the processing, and an output layer that passes the results to the next transformer block.
+* **MLP (多层感知器(Multi-Layer Perceptron))**: 这是一个简单的前向反馈神经网络(feed-forward neural network). 它会将自注意力机制标注的信息进一步处理. MLP有一个输入层用来接收自注意力机制的输出数据. 一个隐藏层将对数据进行更复杂的处理, 输出层则会将结果传递给下一个transformer模块(blocks).
 
-Together, the attention heads act as the “what to think about” part, while the MLP is the “how to think about it” part. Stacking many transformer blocks allows the model to understand complex patterns and relationships in the text, but this is not always guaranteed.
+自注意力机制和MLP共同协作时, 自注意力机制决定模型 "该想什么", 而 MLP 决定模型 "如何思考". 堆叠起的多个transformer模块(blocks)让模型能够理解文本中复杂的语义和语境关联, 但是这也不是包来的. 
 
-Instead of looking at the original paper diagram, let’s visualize a simpler and easier architecture diagram that we will be coding.
+让我们看看我们即将实现的更简化、更容易得架构图, 而不是原论文中的架构图.
 
+
+**图片就不翻译了, 但也可以结合下面的解释看, 我会保留关键词**
 ![Transformer Architecture by [Fareed Khan](undefined)](https://cdn-images-1.medium.com/max/11808/1*QXmeA-H52C-p82AwawslbQ.png)
 
 Let’s read through the flow of our architecture that we will be coding:
