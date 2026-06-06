@@ -11,7 +11,7 @@
 
 </div>
 
-我根据 [Attention is All You Need](https://arxiv.org/abs/1706.03762) 论文 , 使用PyTorch从0手搓了一个transformer模型. 现在你只需要一块GPU就可以使用我的 script 脚本训练自己的 **百亿** 或 **百万** 参数的大模型
+我根据 [Attention is All You Need](https://arxiv.org/abs/1706.03762) 论文 , 使用PyTorch从0手搓了一个transformer模型. 现在你只需要一块GPU就可以使用我的 script 脚本训练自己的 **十亿** 或 **百万** 参数的大模型
 
 下面是我自己训练的 1300 万参数的LLM输出:
 
@@ -669,9 +669,8 @@ class MultiHeadAttention(nn.Module):
 class Block(nn.Module):
     """
     单transformer模块
-
-    This block consists of a multi-head attention layer followed by an MLP,
-    with layer normalization and residual connections.
+    
+    这个模块由一个多头注意力机(multi-head attention)层及后续的 MLP 构成, 附带层归一化(layer normalization)及残差连接(residual connections).
     """
     def __init__(self, n_head, n_embed, context_length):
         super().__init__()
@@ -682,13 +681,13 @@ class Block(nn.Module):
 
     def forward(self, x):
         """
-        Forward pass through the Transformer block.
+        通过Transformer模块前向传播
 
-        Args:
-            x (torch.Tensor): Input tensor.
+        参数:
+            x (torch.Tensor): 输入张量.
 
-        Returns:
-            torch.Tensor: Output tensor after the block.
+        返回:
+            torch.Tensor: 经过模块处理后输出张量.
         """
         # Apply multi-head attention with residual connection
         x = x + self.attn(self.ln1(x))
@@ -698,28 +697,28 @@ class Block(nn.Module):
 
     def forward_embedding(self, x):
         """
-        Forward pass focusing on the embedding and attention parts.
+        关注嵌入层和注意力模块的前向传播
 
-        Args:
-            x (torch.Tensor): Input tensor.
+        参数:
+            x (torch.Tensor): 输入张量.
 
-        Returns:
-            tuple: A tuple containing the output after MLP embedding and the residual.
+        返回:
+            tuple: 输出一个包含 MLP 嵌入层和残差的元祖.
         """
         res = x + self.attn(self.ln1(x))
         x = self.mlp.forward_embedding(self.ln2(res))
         return x, res
 ```
+这个类定义了一个transformer模块. __init__ 方法初始化了一个层归一化层(ln1, ln2), 一个多头(MultiHeadAttention)注意力机模块, 以及一个 MLP 模块, 所有模块均需要多头参数(n_head), 词嵌入向量(n_embed)以及上下文长度(context_length).
 
-Our Block class represents a single transformer block. The __init__ method initializes layer normalization layers (ln1, ln2), a MultiHeadAttention module, and an MLP module, all parameterized by n_head, n_embed, and context_length.
-
-The forward method implements the block's forward pass, applying layer normalization and multi-head attention with a residual connection, followed by another layer normalization and the MLP, again with a residual connection. The forward_embedding method provides an alternative forward pass focused on the attention and initial MLP embedding stages.
+该模块的前向传播由前向传播方法实现, 该方法先执行层归一化(layer normalization)和带残差(residual connection)的多头注意力机(multi-head attention), 紧跟着另一个层归一化(layer normalization)和 MLP, 并同样带着残差连接. forward_embedding 方法提供了一种替代的前向传播方式, 其会专注于注意力层和初始 MLP 嵌入阶段.
 
 ### 最终模型
 
-So far, we have coded small components of the transformer model. Next, we integrate token and position embeddings with a series of transformer blocks to perform sequence-to-sequence tasks. To do that, we need to code several key parameters: n_head, n_embed, context_length, vocab_size, and N_BLOCKS.
+截止目前, 我们已经实现了transformer模型的一个小组件. 接下来, 我们需要将词元和位置嵌入和一些列的transformer模块整合起来, 以实现线性执行的任务. 为此, 我们还需要提供一些关键参数:多头参数(n_head), 词嵌入维度(n_embed), 上下文长度(context_length), 词汇表大小(vocab_size), transformer数量(N_BLOCKS).
 
-vocab_size determines the size of the token embedding layer, mapping each token to a dense vector of size n_embed. The context_length parameter is important for the position embedding layer, which encodes the position of each token in the input sequence, also with dimension n_embed. The number of attention heads (n_head) and the number of blocks (N_BLOCKS) dictate the depth and complexity of the network.
+词汇表大小决定了词元嵌入层的维度, 该层将每个词元映射为长度等于嵌入维度（n_embed）的稠密向量. 上下文长度(context_length)对位置嵌入层非常重要, 该层将输入序列中的每个词元的位置信息进行编码, 和词嵌入(n_embed)维度一样.
+vocab_size determines the size of the token embedding layer, mapping. The context_length parameter is important for the position embedding layer, which encodes the position of each . The number of attention heads (n_head) and the number of blocks (N_BLOCKS) dictate the depth and complexity of the network.
 
 These parameters collectively define the architecture and capacity of the transformer model, so let’s code it.
 
