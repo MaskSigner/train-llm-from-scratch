@@ -717,10 +717,9 @@ class Block(nn.Module):
 
 截止目前, 我们已经实现了transformer模型的一个小组件. 接下来, 我们需要将词元和位置嵌入和一些列的transformer模块整合起来, 以实现线性执行的任务. 为此, 我们还需要提供一些关键参数:多头参数(n_head), 词嵌入维度(n_embed), 上下文长度(context_length), 词汇表大小(vocab_size), transformer数量(N_BLOCKS).
 
-词汇表大小决定了词元嵌入层的维度, 该层将每个词元映射为长度等于嵌入维度（n_embed）的稠密向量. 上下文长度(context_length)对位置嵌入层非常重要, 该层将输入序列中的每个词元的位置信息进行编码, 和词嵌入(n_embed)维度一样.
-vocab_size determines the size of the token embedding layer, mapping. The context_length parameter is important for the position embedding layer, which encodes the position of each . The number of attention heads (n_head) and the number of blocks (N_BLOCKS) dictate the depth and complexity of the network.
+词汇表大小决定了词元嵌入层的维度, 该层将每个词元映射为长度等于嵌入维度（n_embed）的稠密向量. 上下文长度(context_length)对位置嵌入层非常重要, 该层将输入序列中的每个词元的位置信息进行编码, 和词嵌入(n_embed)维度一样. 注意力头数量(n_head)和transformer堆叠数量(N_BLOCKS)决定了网络的深度和复杂度. 
 
-These parameters collectively define the architecture and capacity of the transformer model, so let’s code it.
+这些参数共同决定了transformer模型的结构和容量, 接下来我们就要编写这部分. 
 
 ![Transformer Class by [Fareed Khan](undefined)](https://cdn-images-1.medium.com/max/5418/1*0XXd_R2EOhkKCQDfqUQg0w.png)
 
@@ -729,10 +728,9 @@ These parameters collectively define the architecture and capacity of the transf
 
 class Transformer(nn.Module):
     """
-    The main Transformer model.
+    Transformer主模型.
 
-    This class combines token and position embeddings with a sequence of Transformer blocks
-    and a final linear layer for language modeling.
+    这个类由词元(token)和位置的嵌入信息与一系列的transformer模块组成, 最后由一个线性层完成语言模型构建. 
     """
     def __init__(self, n_head, n_embed, context_length, vocab_size, N_BLOCKS):
         super().__init__()
@@ -747,13 +745,13 @@ class Transformer(nn.Module):
 
     def _pre_attn_pass(self, idx):
         """
-        Combines token and position embeddings.
+        将词元(token)和位置信息嵌入组合起来.
 
-        Args:
-            idx (torch.Tensor): Input token indices.
+        参数:
+            idx (torch.Tensor): 输入词元索引.
 
-        Returns:
-            torch.Tensor: Sum of token and position embeddings.
+        返回:
+            torch.Tensor: 将词元(token)和位置信息嵌入结果相加.
         """
         B, T = idx.shape
         tok_embedding = self.token_embed(idx)
@@ -762,14 +760,14 @@ class Transformer(nn.Module):
 
     def forward(self, idx, targets=None):
         """
-        Forward pass through the Transformer.
+        transformer的前向传播.
 
-        Args:
-            idx (torch.Tensor): Input token indices.
-            targets (torch.Tensor, optional): Target token indices for loss calculation. Defaults to None.
+        参数:
+            idx (torch.Tensor): 输入词元(token)索引.
+            targets (torch.Tensor, optional): 计算目标词元(token)的损失. 默认为 None.
 
-        Returns:
-            tuple: Logits and loss (if targets are provided).
+        返回:
+            tuple: 返回逻辑值和损失(目标词元(token)传入才有).
         """
         x = self._pre_attn_pass(idx)
         for block in self.attn_blocks:
@@ -786,13 +784,13 @@ class Transformer(nn.Module):
 
     def forward_embedding(self, idx):
         """
-        Forward pass focusing on the embedding and attention blocks.
+        前向传播中关注嵌入和注意力机的部分.
 
-        Args:
-            idx (torch.Tensor): Input token indices.
+        参数:
+            idx (torch.Tensor): 输入词元(token)索引.
 
-        Returns:
-            tuple: Output after attention blocks and the residual.
+        返回:
+            元组(tuple): 经过注意力机(attention)处理和残差(residual)的返回.
         """
         x = self._pre_attn_pass(idx)
         residual = x
@@ -802,14 +800,14 @@ class Transformer(nn.Module):
 
     def generate(self, idx, max_new_tokens):
         """
-        Generates new tokens given a starting sequence.
+        依据给出的文本序列生成新的词元(tokens)
 
-        Args:
-            idx (torch.Tensor): Initial sequence of token indices.
-            max_new_tokens (int): Number of tokens to generate.
+        参数:
+            idx (torch.Tensor): 初始化词元(token)索引序列.
+            max_new_tokens (int): 待生成的词元(token)数量.
 
-        Returns:
-            torch.Tensor: The extended sequence of tokens.
+        返回:
+            torch.Tensor: 返回词元(tokens)和序列.
         """
         for _ in range(max_new_tokens):
             idx_cond = idx[:, -self.context_length:]
@@ -821,6 +819,7 @@ class Transformer(nn.Module):
         return idx
 ```
 
+我们的transformer类的`__init__`方法初始化了词元(token)和位置嵌入信息(token_embed, position_embed)层, 
 Our Transformer class `__init__` method initializes token and position embedding layers (token_embed, position_embed), a sequence of Block modules (attn_blocks), a final layer normalization layer (layer_norm), and a linear layer for language modeling (lm_head).
 
 The _pre_attn_pass method combines token and position embeddings. The forward method processes the input sequence through the embedding layers and the series of transformer blocks, applies final layer normalization, and generates logits. It also calculates the loss if targets are provided. The forward_embedding method provides an intermediate forward pass up to the output of the attention blocks, and the generate method implements token generation.
