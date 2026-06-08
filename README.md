@@ -819,113 +819,112 @@ class Transformer(nn.Module):
         return idx
 ```
 
-我们的transformer类的`__init__`方法初始化了词元(token)和位置嵌入信息(token_embed, position_embed)层, 
-Our Transformer class `__init__` method initializes token and position embedding layers (token_embed, position_embed), a sequence of Block modules (attn_blocks), a final layer normalization layer (layer_norm), and a linear layer for language modeling (lm_head).
+我们的transformer类的`__init__`方法初始化了词元(token)和位置嵌入信息(token_embed, position_embed)层, 堆叠的Block模块(attn_blocks), 最后是一个层归一化层(layer_norm)和一个语言建模的线性层(lm_head).
 
-The _pre_attn_pass method combines token and position embeddings. The forward method processes the input sequence through the embedding layers and the series of transformer blocks, applies final layer normalization, and generates logits. It also calculates the loss if targets are provided. The forward_embedding method provides an intermediate forward pass up to the output of the attention blocks, and the generate method implements token generation.
+forward 方法是注意力计算的前置步骤(pre_attn_pass)方法会将词元(token)和位置嵌入(position embeddings)信息组合起来. forward 方法利用嵌入层和堆叠的transformer模块处理输入的文本序列, 经过层归一化激活后, 然后生成预测逻辑值(logits). 如果传入了标签值, 还会同步计算损失. forward_embedding 方法完成前向计算，输出注意力模块的中间结果, generate 方法则用于实现词元生成逻辑.
 
 ### 训练批次
 
-When we train a deep learning model on big data, we process it in batches due to GPU availability. So, let’s create a get_batch_iterator function, taking the data_path to an HDF5 file, the desired batch_size, the context_length for each sequence, and the device to load the data onto.
+当我们在使用大量数据训练一个深度模型的时候, 受限于GPU性能, 我们一般都分批次处理. 因此, 让我们创建一个get_batch_iterator的方法, 该函数接收HDF5 文件路径(data_path)、目标批次大小(batch_size)、每个序列的上下文长度(context_length)，以及用于加载数据的设备作为参数
 
 The batch_size determines how many sequences are processed in parallel during training, while the context_length specifies the length of each input sequence. The data_path points to the location of the training data.
 
 ```python
-# --- Data Loading Utility --- 
+# --- 数据加载工具方法(Data Loading Utility) --- 
 
 def get_batch_iterator(data_path, batch_size, context_length, device="gpu"):
     """
-    Creates an iterator for generating batches of data from an HDF5 file.
+    创建一个 生成HDF5文件数据的批次迭代器
 
-    Args:
-        data_path (str): Path to the HDF5 file containing tokenized data.
-        batch_size (int): Number of sequences in each batch.
-        context_length (int): Length of each sequence.
-        device (str, optional): Device to load the data onto ('cpu' or 'cuda'). Defaults to "cpu".
+    参数:
+        data_path (str): 包含已分词的 HDF5 文件的路径.
+        batch_size (int): 单次的迭代批次.
+        context_length (int): 上下文长度.
+        device (str, optional): 训练数据的设备('cpu' or 'cuda'). 默认是 "CPU".
 
-    Yields:
-        tuple: A tuple containing input sequences (xb) and target sequences (yb).
+    临时返回(Yields):
+        tuple: 一个包含输入序列和目标(target)序列的元组. 
     """
-    # Open the HDF5 file in read mode
+    # 使用read模式打开 HDF5 文件
     with h5py.File(data_path, 'r') as hdf5_file:
         
-        # Extract the dataset of tokenized sequences
+        # 读取文件中的数据集
         dataset = hdf5_file['tokens']
         
-        # Get the total size of the dataset
+        # 获取数据集的总量
         dataset_size = dataset.shape[0]
         
-        # Calculate the number of examples (sequences) that can be made from the data
+        # 计算可以从数据中生成的样本（序列）总数
         n_examples = (dataset_size - 1) // context_length
         
-        # Create an array of indices for examples and shuffle them for randomness
+        # 创建一个样本索引数组, 并对其进行打乱以保障其随机性
         example_idxs = np.arange(n_examples)
         np.random.shuffle(example_idxs)
         
-        # Initialize epoch counter and example counter
+        # 初始化批次计数器和样本计数器
         epochs = 0
         counter = 0
         
         while True:
-            # Check if the current batch exceeds the number of available examples
+            # 检查当前批次是否超出了可用样本的总数
             if counter + batch_size > n_examples:
-                # Shuffle the indices again and reset the counter to 0
+                # 再次打乱索引并把计数器归0
                 np.random.shuffle(example_idxs)
                 counter = 0
-                print(f"Finished epoch {epochs}")  # Print epoch number when an epoch finishes
-                epochs += 1  # Increment the epoch counter
+                print(f"Finished epoch {epochs}")  # 当批次结束后打印批次数
+                epochs += 1  # 更新批次计数器
             
-            # Select a batch of random indices to generate sequences
+            # 随机选择一个随机的批次索引生成序列
             random_indices = example_idxs[counter:counter+batch_size] * context_length
             
-            # Retrieve sequences from the dataset based on the random indices
+            # 根据生成的随机序列从数据集中读取数据
             random_samples = torch.tensor(np.array([dataset[idx:idx+context_length+1] for idx in random_indices]))
             
-            # Separate the input sequences (xb) and target sequences (yb)
-            xb = random_samples[:, :context_length].to(device)  # Input sequence (first half of the random sample)
-            yb = random_samples[:, 1:context_length+1].to(device)  # Target sequence (second half of the random sample)
+            # 分割输入序列和目标序列
+            xb = random_samples[:, :context_length].to(device)  # 输入序列(随机样本的前半部分,first half of the random sample)
+            yb = random_samples[:, 1:context_length+1].to(device)  # Target sequence (随机样本的后半部分,second half of the random sample)
             
-            # Increment the counter to move to the next batch
+            # 增加计数器开始下一次循环
             counter += batch_size
             
-            # Yield the input and target sequences as a tuple for the current batch
+            # 将当前批次的输入序列和目标序列以元组的形式临时反回
             yield xb, yb
 ```
-Our get_batch_iterator function handles the loading and batching of training data. It takes data_path, batch_size, context_length, and device as input. The function opens the HDF5 file, shuffles the data, and then enters an infinite loop to generate batches. In each iteration, it selects a random subset of the data to form a batch of input sequences (xb) and their corresponding target sequences (yb).
+get_batch_iterator方法完成训练数据的加载和批次的构建. 这个方法接收 数据路径(data_path), 批次大小(batch_size),上下文长度(context_length),训练设备作为参数.  这个方法先打开 HDF5 文件, 然后打乱数据集, 随后使用训练生成批次数据. 在每次迭代的时候, 会选择一个随机的输入序列(xb)和相应的目标序列的(yb)子样本数据
 
 ### 训练参数
 
-Now that we have coded our model, we need to define the training parameters, such as the number of heads, blocks, and more, along with the data path.
+目前为止, 我们已经完成了模型的编程, 接下来我们需要定义训练参数, 比如注意力头(heads)数量, (transformer)堆叠数量, 指定数据路径.
 
 ```python
-# --- Configuration ---
+# --- 配置(Configuration) ---
 
-# Define vocabulary size and transformer configuration
-VOCAB_SIZE = 50304          # Number of unique tokens in the vocabulary
-CONTEXT_LENGTH = 512        # Maximum sequence length for the model
-N_EMBED = 2048              # Dimension of the embedding space
-N_HEAD = 16                 # Number of attention heads in each transformer block
-N_BLOCKS = 64               # Number of transformer blocks in the model
+# 定义词汇表大小和transformer配置
+VOCAB_SIZE = 50304          # 词汇表中不重复分词(tokens)数量
+CONTEXT_LENGTH = 512        # 模型最大(输入)序列
+N_EMBED = 2048              # 嵌入的维度空间
+N_HEAD = 16                 # 每个transformer模块中的注意力头(heads)数量
+N_BLOCKS = 64               # transformer的堆叠数量
 
-# Paths to training and development datasets
-TRAIN_PATH = "data/train/pile_val.h5"  # File path for the training dataset
-DEV_PATH = "data/val/pile_val.h5"      # File path for the validation dataset
+# 训练数据集和验证数据集的路径
+TRAIN_PATH = "data/train/pile_val.h5"  # 训练数据集路径
+DEV_PATH = "data/val/pile_val.h5"      # 验证数据集路径
 
-# Transformer training parameters
-T_BATCH_SIZE = 32          # Number of samples per training batch
-T_CONTEXT_LENGTH = 16      # Context length for training batches
-T_TRAIN_STEPS = 200000     # Total number of training steps
-T_EVAL_STEPS = 1000        # Frequency (in steps) to perform evaluation
-T_EVAL_ITERS = 250         # Number of iterations to evaluate the model
-T_LR_DECAY_STEP = 50000    # Step at which to decay the learning rate
-T_LR = 5e-4                # Initial learning rate for training
-T_LR_DECAYED = 5e-5        # Learning rate after decay
-T_OUT_PATH = "models/transformer_B.pt"  # Path to save the trained model
+# transformer训练参数
+T_BATCH_SIZE = 32          # 单批次样本大小
+T_CONTEXT_LENGTH = 16      # 训练批次的上下文长度
+T_TRAIN_STEPS = 200000     # 批量训练的总批次
+T_EVAL_STEPS = 1000        # 评估间隔
+T_EVAL_ITERS = 250         # 用于评估模型的迭代次数
+T_LR_DECAY_STEP = 50000    # 执行学习率衰减的训练步数
+T_LR = 5e-4                # 初始化训练学习率
+T_LR_DECAYED = 5e-5        # 衰减后的学习率
+T_OUT_PATH = "models/transformer_B.pt"  # 训练后模型的保存路径
 
-# Device configuration
+# 训练设备配置
 DEVICE = 'cuda'
 
-# Store all configurations in a dictionary for easy access and modification
+# 将所有的配置存储为字典 方便访问和修改
 default_config = {
     'vocab_size': VOCAB_SIZE,
     'context_length': CONTEXT_LENGTH,
@@ -947,13 +946,13 @@ default_config = {
 }
 ```
 
-For most of the parameters, I have used the most common values and also stored them in a dictionary for easy access. Here, the parameters are for a billion-parameter model. If you want to train a model with millions of parameters, you can reduce the main parameters, which include CONTEXT_LENGTH, N_EMBED, N_HEAD, and N_BLOCKS. However, you can also run the million-parameter model script in my GitHub repository.
+对于大多数参数, 我们已经在编码中使用了并且存储到了字典中方便访问. 这里的参数配置的是十亿参数(billion-parameter)的模型. 如果你想训练一个百万参数(millions-parameters)的模型, 你可以下调核心参数, 包括上下文长度(CONTEXT_LENGTH), 嵌入维度(N_EMBED), 注意力头数(N_HEAD)和堆叠数.当然, 你也可以直接运行我Github仓库的百万参数(million-parameter)的模型训练脚本.
 
 ### 模型训练
 
-Let's initialize our transformer model and check its total number of parameters.
+让我们开始初始化transformer模型并核对其所有参数.
 ```python
-# --- Initialize the Model and Print Parameters --- 
+# --- 初始化模型并打印参数(Initialize the Model and Print Parameters) --- 
 
 model = Transformer(
     n_head=config['n_head'],
@@ -964,79 +963,78 @@ model = Transformer(
 ).to(config['device'])
 
 
-# Print the total number of parameters
+# 打印参数总数
 total_params = sum(p.numel() for p in model.parameters())
 print(f"Total number of parameters in the model: {total_params:,}")
 
 
-#### OUTPUT ####
+#### 输出 ####
 2,141,346,251
 ```
 
-Now that we have 2 Billion parameter model, we need to define our Adam optimizer and loss tracking function, which will help us track the progress of our model throughout the training.
+现在我们已经有 20 亿(2 Billion)参数的模型, 现在为什么需要定义一个Adam优化器和损失追踪函数, 以此全程监控模型训练进度. 
 
 ```python
-# --- Optimizer Setup and Loss Tracking --- 
+# --- 优化器配置以及损失追踪(Optimizer Setup and Loss Tracking) --- 
 
-# Set up the AdamW optimizer with the specified learning rate.
+# 使用学习率配置AdamW优化器.
 optimizer = torch.optim.AdamW(model.parameters(), lr=config['t_lr'])
 
-# List to track loss values during training.
+# 存储训练过程中的损失值.
 losses = []
 
-# Define a window size for averaging recent losses in the training loop.
+# 定义一个窗口用户计算循环中损失的平均值.
 AVG_WINDOW = 64
 
-# Helper function to estimate the average loss for training and development data.
+# 辅助函数, 用于计算训练集和验证集的平均损失.
 @torch.no_grad()
 def estimate_loss(steps):
     """
-    Evaluate the model on training and development datasets and calculate average loss.
+    基于训练数据和验证数据评估模型 并 计算平均损失.
 
-    Args:
-        steps (int): Number of steps to evaluate.
+    参数:
+        steps (int): 评估使用的步数.
 
-    Returns:
-        dict: Dictionary containing average losses for 'train' and 'dev' splits.
+    返回:
+        dict: 返回包含训练数据和验证数据的平均损失.
     """
     out = {}
-    model.eval()  # Set the model to evaluation mode.
+    model.eval()  # 将模型设置为评估模型.
 
     for split in ['train', 'dev']:
-        # Select the appropriate data path for the current split.
+        # 为当前数据集划分项选择对应的文件路径.
         data_path = config['train_path'] if split == 'train' else config['dev_path']
         
-        # Create a batch iterator for evaluation.
+        # 创建一个批量评估的迭代器.
         batch_iterator_eval = get_batch_iterator(
             data_path, config['t_batch_size'], config['t_context_length'], device=config['device']
         )
         
-        # Initialize a tensor to track loss values for each evaluation step.
+        # 在每一个评估批次中初始化一个追踪的损失值张量.
         losses_eval = torch.zeros(steps)
         for k in range(steps):
             try:
-                # Fetch a batch and calculate the loss.
+                # 获取一个批次并计算损失.
                 xb, yb = next(batch_iterator_eval)
                 _, loss = model(xb, yb)
                 losses_eval[k] = loss.item()
             except StopIteration:
-                # Handle the case where the data iterator ends early.
+                # 处理数据迭代提前结束的情况.
                 print(f"Warning: Iterator for {split} ended early.")
                 break
         
-        # Compute the mean loss for the current split.
+        # 计算当前批次的平均损失.
         out[split] = losses_eval[:k + 1].mean()
     
-    model.train()  # Restore the model to training mode.
+    model.train()  # 将模型切换为训练模型.
     return out
 ```
-
-We will now initialize our batch processing function and training loop, which will start our training.
+我们现在需要初始化我们的批次处理方法和训练循环, 以此开启我们的训练.
 
 ```python
-# --- Training Loop ---
+# --- 训练循环(Training Loop) ---
 
-# Create a batch iterator for the training data.
+# 为训练数据创建一个批次训练迭代器.
 batch_iterator = get_batch_iterator(
   config['train_path'],
   config['t_batch_size'],
@@ -1044,51 +1042,51 @@ batch_iterator = get_batch_iterator(
   device=config['device']
 )
 
-# Create a progress bar to monitor training progress.
+# 创建一个训练进度条, 以监控训练进度.
 pbar = tqdm(range(config['t_train_steps']))
 for step in pbar:
   try:
-      # Fetch a batch of input and target data.
+      # 获取输入数据和目标数据的批次.
       xb, yb = next(batch_iterator)
       
-      # Perform a forward pass and compute the loss.
+      # 执行前向传播并计算损失.
       _, loss = model(xb, yb)
       
-      # Record the loss for tracking.
+      # 记录损失用于追踪.
       losses.append(loss.item())
       pbar.set_description(f"Train loss: {np.mean(losses[-AVG_WINDOW:]):.4f}")
       
-      # Backpropagate the loss and update the model parameters.
+      # 损失反向传播并更新模型参数.
       optimizer.zero_grad(set_to_none=True)
       loss.backward()
       optimizer.step()
 
-      # Periodically evaluate the model on training and development data.
+      # 根据训练数据集和验证数据集定期评估模型.
       if step % config['t_eval_steps'] == 0:
           train_loss, dev_loss = estimate_loss(config['t_eval_iters']).values()
           print(f"Step: {step}, Train loss: {train_loss:.4f}, Dev loss: {dev_loss:.4f}")
 
-      # Decay the learning rate at the specified step.
+      # 在固定的批次下调学习率.
       if step == config['t_lr_decay_step']:
           print('Decaying learning rate')
           for g in optimizer.param_groups:
               g['lr'] = config['t_lr_decayed']
   except StopIteration:
-      # Handle the case where the training data iterator ends early.
+      # 处理训练数据迭代器提前结束的情况.
       print("Training data iterator finished early.")
       break
 ```
 ### 保存训练模型
 
-Since our training loop has the ability to handle errors, in case the loop throws any error, it will save our partially trained model to avoid loss. Once the training is complete, we can save our trained model to use it later for inference.
+我们的训练过程中已经具有处理错误的能力, 万一在循环中程序抛出异常, 也会将我们的训练模型保存起来避免丢失之前的训练进度. 一旦我们完成了训练, 我们就可以保存我们训练好了的模型用来在之后进行推断.
 
 ```python
-# --- Save Model and Final Evaluation ---
+# --- 保存模型并最后进行评估(Save Model and Final Evaluation) ---
 
-# Perform a final evaluation of the model on training and development datasets.
+# 根据训练数据集和验证数据集执行最后的评估.
 train_loss, dev_loss = estimate_loss(200).values()
 
-# Ensure unique model save path in case the file already exists.
+# 确保模型的保存路径唯一, 避免文件已存在导致覆盖/报错.
 modified_model_out_path = config['t_out_path']
 save_tries = 0
 while os.path.exists(modified_model_out_path):
@@ -1096,7 +1094,7 @@ while os.path.exists(modified_model_out_path):
     model_out_name = os.path.splitext(config['t_out_path'])[0]
     modified_model_out_path = model_out_name + f"_{save_tries}" + ".pt"
 
-# Save the model's state dictionary, optimizer state, and training metadata.
+# 保存模型的状态字典, 优化器状态以及训练元数据.
 torch.save(
     {
         'model_state_dict': model.state_dict(),
@@ -1111,120 +1109,117 @@ torch.save(
 print(f"Saved model to {modified_model_out_path}")
 print(f"Finished training. Train loss: {train_loss:.4f}, Dev loss: {dev_loss:.4f}")
 ```
-The final training loss for the billion-parameter model is 0.2314, and the dev loss is 0.643.
+十亿参数(billion-parameter)的模型最终的训练损失是 0.2314, 验证数据的损失是0.643.
 
 ### 训练损失
-
-When I plot the loss of both the million- and billion-parameter models, they look very different.
+当将将百万和十亿参数的损失绘制出来后, 他们看起来差异很大(使用matplotlib.pyplot绘图).
 
 ![Training Loss Comparison](https://cdn-images-1.medium.com/max/6696/1*8Gl7cEbainB4GRVwL3cc7Q.png)
 
-The billion-parameter model starts with a much higher loss and fluctuates a lot at the beginning. It goes down quickly at first, but then wobbles before becoming smoother. This shows that the bigger model has a harder time finding the right way to learn at the start. It might need more data and careful settings. When the learning rate is lowered (the red line), the loss goes down more steadily, showing that this helps it fine-tune.
+十亿参数模型开始的时候损失很高且波动很大. 其一开始下降很快, 但是在其变得稳定(图像光滑)之前波动很大. 这表明参数化更大的模型在开始时更难找到合适的学习方法. 或许其需要更多的数据和更精细的设置. 当学习率(the red line)降下来后, 损失率就走的更稳当, 这表明这一过程有助于模型微调.
 
-The million-parameter model’s loss goes down more easily from the start. It doesn’t fluctuate as much as the bigger model. When the learning rate is lowered, it doesn’t change the curve as much. This is likely because the smaller model is simpler to train and finds a good solution faster. The big difference shows how much harder it is to train very large models. They need different methods and maybe more time to learn well.
+百万参数的模型损失率下降的很丝滑. 它的波动并没有十亿模型那么大, 当学习率下降后, 其曲线也没有多大的变化. 好像是因为参数更小的模型更容易训练, 其能更快找到一个好的解决方案. 这些大的差异表明训练一个大参数的模型有多困难. 训练起来需要不一样的方可能也需要更长的时间. 
 
-We now have our saved model. We can finally use it for inference and see how it generates text. 😓
+现在我们已经保存好了我们的模型. 终于我们可以用其来进行推理并且看看其是如何工作的.  😓
 
 ### 文本生成
 
-Let’s create a function to generate text from our saved model, which takes the saved model path and the encoder as inputs and returns the generated text.
+让我们创建一个方法利用保存的模型去生成模型, 其使用保存好的模型路径和编码器作为输入并返回生成的文本.
 
 ```python
 def generate_text(model_path, input_text, max_length=512, device="gpu"):
     """
-    Generate text using a pre-trained model based on the given input text.
+    根据输入的文本使用预训练的模型生成文本.
 
-    Args:
-    - model_path (str): Path to the model checkpoint.
-    - device (torch.device): Device to load the model on (e.g., 'cpu' or 'cuda').
-    - input_text (str): The input text to seed the generation.
-    - max_length (int, optional): Maximum length of generated text. Defaults to 512.
+    参数:
+    - model_path (str): 模型路径.
+    - device (torch.device): 训练设备(e.g., 'cpu' or 'cuda').
+    - input_text (str): 输入文本.
+    - max_length (int, optional): 生成文本的最大长度. 默认 512.
 
-    Returns:
-    - str: The generated text.
+    返回:
+    - str: 生成的文本.
     """
 
-    # Load the model checkpoint
+    # 加载模型
     checkpoint = torch.load(model_path)
 
-    # Initialize the model (you should ensure that the Transformer class is defined elsewhere)
+    # 初始化模型 (你需要确保你已经定义了transformer类)
     model = Transformer().to(device)
 
-    # Load the model's state dictionary
+    # 加载模型的状态字典
     model.load_state_dict(checkpoint['model_state_dict'])
 
-    # Load the tokenizer for the GPT model (we use 'r50k_base' for GPT models)
+    # 加载GPT模型的分词器(我们使用'r50k_base')
     enc = tiktoken.get_encoding('r50k_base')
 
-    # Encode the input text along with the end-of-text token
+    # 将输入文本和结束标记进行编码
     input_ids = torch.tensor(
         enc.encode(input_text, allowed_special={'<|endoftext|>'}),
         dtype=torch.long
-    )[None, :].to(device)  # Add batch dimension and move to the specified device
+    )[None, :].to(device)  # 添加批量维度然后将其移动到指定的设备上
 
-    # Generate text with the model using the encoded input
+    # 根据已编码的输入生成文本
     with torch.no_grad():
-        # Generate up to 'max_length' tokens of text
+        # 生成最多 max_length 的词元文本
         generated_output = model.generate(input_ids, max_length)
 
-        # Decode the generated tokens back into text
+        # 将生成的词元解码为文本
         generated_text = enc.decode(generated_output[0].tolist())
 
     return generated_text
 ```
+我们需要架构之前定义的模型架构, 接下来加载模型架构的参数.
 
-The transformer we defined earlier needs to be called here to load the architecture, and then we load the saved model as the state in that architecture.
-
-Let’s first observe what both the million and billion-parameter models generate without providing any input, and see what they generate randomly.
+让我们先观察一下百万参数和十亿参数模型在没有任何输入的时候会随机生成什么.
 
 ```python
-# Defining the file paths for the pre-trained models
-Billion_model_path = 'models/transformer_B.pt'  # Path to the Billion model
-Million_model_path = 'models/transformer_M.pt'  # Path to the Million model
+# 定义预训练模型路径
+Billion_model_path = 'models/transformer_B.pt'  # 十亿参数模型路径
+Million_model_path = 'models/transformer_M.pt'  # 百万参数模型路径
 
-# Using '<|endoftext|>' as input to the models (acts as a prompt that allows the models to generate text freely)
+# 使用 '<|endoftext|>' 作为模型输入(作用是使用提示器允许模型自由生成文本)
 input_text = "<|endoftext|>"
 
-# Call the function to generate text based on the input text using the Billion model
+# 根据输入使用十亿模型生成文本
 B_output = generate_text(Billion_model_path, input_text)
 
-# Call the function to generate text based on the input text using the Million model
+# 根据输入百万模型生成文本
 M_output = generate_text(Million_model_path, input_text)
 
-# Print the output generated by both models
+# 两个模型输出各自生成的文本
 print(B_output)  # Output from the Billion model
 print(M_output)  # Output from the Million model
 ```
 
-| **Million Parameter Output** | **Billion Parameter Output** |
-|------------------------------|------------------------------|
+| **十亿参数模型输出(Million Parameter Output)**                                                                                                                                                                                                                                                                                                                                                | **百万模型输出(Billion Parameter Output)**                                                                                                                                                                                                                                                                                                                                                               |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | In 1978, The park was returned to the factory-plate that the public share to the lower of the electronic fence that follow from the Station's cities. The Canal of ancient Western nations were confined to the city spot. The villages were directly linked to cities in China that revolt that the US budget and in Odambinais is uncertain and fortune established in rural areas. | There are two miles east coast from 1037 and 73 million refugees (hypotetus) as the same men and defeated Harvard, and Croft. At right east and West Nile's Mediterranean Sea jets. It was found there a number of parties, blacksmith, musician and boutique hospitality and inspire the strain delivered Canadians have already killed, rural branches with coalition railholder against Abyssy. |
 
+两个LLM模型都能生成清晰且正确的输出, 当输入非常简单非常短的时候. 比如, 百万参数模型的输出, 句子 **“The villages were directly linked to cities in China”** 是有意义的且可以传达出一个清晰的意图(表意顺畅, 语义清晰). 这很通俗易懂, 清晰体现乡村与城市的关联.
 
-Both LLMs are able to generate clear and accurate words when the context is short and simple. For example, in the million-parameter output, the phrase **“The villages were directly linked to cities in China”** makes sense and conveys a clear idea. It is easy to understand and logically connects the villages to the cities.
+然而, 当输入更长且复杂的时候, 就不行了. 十亿参数模型输出, 句子例如 **“There are two miles east coast from 1037 and 73 million refugees (hypotetus)”** 和 **“blacksmith, musician and boutique hospitality and inspire the strain delivered Canadians”** 变得更难以理解. 语句逻辑零散, 句子读起来也不通畅. 虽然词语拼写正确, 但是整体表达非常晦涩且含糊不清.
 
-However, when the context becomes longer and more complex, the clarity begins to fade. In the billion-parameter output, sentences like **“There are two miles east coast from 1037 and 73 million refugees (hypotetus)”** and **“blacksmith, musician and boutique hospitality and inspire the strain delivered Canadians”** become harder to follow. The ideas seem disjointed, and the sentence structure doesn’t flow naturally. While the words used might still be correct, the overall meaning becomes confusing and unclear.
-
-The positive point is that the 13+ million-parameter LLM also starts generating some kind of meaningful content with correct word spelling. For instance, when I use the subject input text, it starts generating an email for me. Although, obviously, broader text doesn’t provide meaningful results, take a look at the output:
+令人欣慰的是 13+ 百万参数的LLM已经能够生成拼写正确且具备一定语义的句子了. 例如, 当我使用subject输入文本, 它给我生成了一封邮件. 尽管, 句子并不具有正确的语义, 让我们看一下输出:
 
 ```python
-# Input text
+# 输入文本
 input_text "Subject: "
 
-# Call the Million parameter Mod
+# 调用百万参数的模型
 m_output = generate_text(Million_model_path, input_text)
 
-print(m_output)  # Output from the Million model
+print(m_output)  # 百万参数模型的输出
 ```
-| **Million Parameter LLM Output**                                                                 |
-|--------------------------------------------------------------------------------------------------|
+| **百万参数模型的输出(Million Parameter LLM Output)**                                                                                                           |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Subject: ClickPaper-summary Study for Interview <br>Good morning, I hope this message finds you well, as the sun gently peeks through the clouds, ... |
 
-Our million parameter model gives us the motivation that we can have a very narrow, goal-oriented LLM under 1B in size, while our 1B trained model shows us that the architecture needs to be coded in great depth with proper consideration. Otherwise, it won’t improve training or performance compared to the million-parameter model. It will just overfit the data unless you have a deep architecture for the billion-sized model.
+这款百万参数模型让我们有信心打造出参数量低于十亿、功能聚焦且目标明确的大语言模型;而十亿参数训练模型则表明，相关模型架构需要深入编写代码，并进行更深入的谋划. 否则, 相较于百万参数模型, 它在训练效果与整体性能上都无法实现提升. 如果十亿参数模型不采用深层架构, 就只会对数据产生过拟合. 
 
 # 接下来呢
 
-I recommend that you create the 13+ million-parameter model and then start scaling it by adding the next 100 parameters, improving its ability to handle shorter contexts. It’s up to you how many more parameters you want to train for specific tasks. Then, for the remaining parameters under 1B, try fine-tuning the model on domain-specific data, such as writing emails or essays, and see how it generates the text.
+我建议你创建一个 13+ 百万参数的模型 然后 接着增加 100 个不断提升模型能力让其能够处理更短的文本. 任务中使用多少参数这取决于你. 对于十亿参数以内的剩余部分, 可使用邮件、文章等领域专属数据对模型进行微调, 再观察其文本生成效果. 
 
 <hr>
 
